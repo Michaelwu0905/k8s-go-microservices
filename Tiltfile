@@ -1,8 +1,11 @@
 load('ext://restart_process', 'docker_build_with_restart')
 
+default_registry('192.168.64.4:5000')
+allow_k8s_contexts('default')
+
 ### API Gateway ###
 
-gateway_compile_cmd = 'CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/api-gateway ./services/api-gateway'
+gateway_compile_cmd = 'CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o build/api-gateway ./services/api-gateway'
 if os.name == 'nt':
   gateway_compile_cmd = './infra/development/docker/api-gateway-build.bat'
 
@@ -35,7 +38,7 @@ k8s_resource('api-gateway', port_forwards=8081,
 
 ### Driver Service ###
 
-driver_compile_cmd = 'CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/driver-service ./services/driver-service'
+driver_compile_cmd = 'CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o build/driver-service ./services/driver-service'
 if os.name == 'nt':
   driver_compile_cmd = './infra/development/docker/driver-service-build.bat'
 
@@ -67,7 +70,7 @@ k8s_resource('driver-service', resource_deps=['driver-service-compile'])
 
 ### Trip Service ###
 
-trip_compile_cmd = 'CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o build/trip-service ./services/trip-service'
+trip_compile_cmd = 'CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o build/trip-service ./services/trip-service'
 if os.name == 'nt':
   trip_compile_cmd = './infra/development/docker/trip-service-build.bat'
 

@@ -18,15 +18,18 @@ export function useNearbyDrivers(location: Location) {
 
   useEffect(() => {
     const ws = new WebSocket(`${WEBSOCKET_URL}/drivers`);
+    let active = true;
 
     ws.onopen = () => {
+      if (!active) return;
+      setError(null);
       // Send initial location
       ws.send(JSON.stringify(location));
     };
 
     ws.onmessage = (event) => {
+      if (!active) return;
       const drivers = JSON.parse(event.data) as Driver[];
-
       setDrivers(drivers);
     };
 
@@ -35,11 +38,13 @@ export function useNearbyDrivers(location: Location) {
     };
 
     ws.onerror = (event) => {
+      if (!active) return;
       setError('WebSocket error occurred');
       console.error('WebSocket error:', event);
     };
 
     return () => {
+      active = false;
       console.log('Closing WebSocket');
       ws.close();
     };
