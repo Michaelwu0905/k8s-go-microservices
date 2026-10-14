@@ -44,3 +44,11 @@ func (ds *TripServiceClient) Close() {
 func (ds *TripServiceClient) CreateTrip(ctx context.Context, req *pb.CreateTripRequest) (*pb.CreateTripResponse, error) {
 	return ds.Client.CreateTrip(ctx, req)
 }
+
+func (ds *TripServiceClient) AcceptTrip(ctx context.Context, req *pb.AcceptTripRequest) (*pb.AcceptTripResponse, error) {
+	return ds.Client.AcceptTrip(ctx, req)
+}
+
+func (ds *TripServiceClient) GetTrip(ctx context.Context, req *pb.GetTripRequest) (*pb.GetTripResponse, error) {
+	return ds.Client.GetTrip(ctx, req)
+}

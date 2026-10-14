@@ -9,9 +9,13 @@ export interface Location {
 }
 
 export interface RouteInfo {
+    trip_id: string
+    status: number
     route: {
         geometry: {
             coordinates: Location[]
         }[]
+        distance: number
+        duration: number
     }
 }

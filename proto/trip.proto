@@ -6,6 +6,17 @@ option go_package = "shared/proto/trip;trip";
 
 service TripService {
   rpc CreateTrip(CreateTripRequest) returns (CreateTripResponse);
+  rpc AcceptTrip(AcceptTripRequest) returns (AcceptTripResponse);
+  rpc GetTrip(GetTripRequest) returns (GetTripResponse);
+}
+
+enum TripStatus {
+  TRIP_STATUS_UNSPECIFIED = 0;
+  TRIP_STATUS_PENDING = 1;
+  TRIP_STATUS_ACCEPTED = 2;
+  TRIP_STATUS_ARRIVED = 3;
+  TRIP_STATUS_IN_TRIP = 4;
+  TRIP_STATUS_COMPLETED = 5;
 }
 
 message CreateTripRequest {
@@ -31,4 +42,24 @@ message Route {
 message CreateTripResponse {
   string trip_id = 1;
   Route route = 2;
+  TripStatus status = 3;
+}
+
+message AcceptTripRequest {
+  string trip_id = 1;
+  string driver_id = 2;
+}
+
+message AcceptTripResponse {
+  string trip_id = 1;
+  TripStatus status = 2;
+}
+
+message GetTripRequest {
+  string trip_id = 1;
+}
+
+message GetTripResponse {
+  string trip_id = 1;
+  TripStatus status = 2;
 }

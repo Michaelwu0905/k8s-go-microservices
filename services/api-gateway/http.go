@@ -68,3 +68,44 @@ func handleCreateTrip(w http.ResponseWriter, r *http.Request, tripClient *trip_c
 
 	writeJSON(w, http.StatusOK, resp)
 }
+
+func handleAcceptTrip(w http.ResponseWriter, r *http.Request, tripClient *trip_client.TripServiceClient) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var reqBody struct {
+		TripID   string `json:"trip_id"`
+		DriverID string `json:"driver_id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
+		http.Error(w, "Failed to parse JSON data", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	resp, err := tripClient.AcceptTrip(r.Context(), &pb.AcceptTripRequest{
+		TripId:   reqBody.TripID,
+		DriverId: reqBody.DriverID,
+	})
+	if err != nil {
+		http.Error(w, "Failed to accept trip", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func handleGetTrip(w http.ResponseWriter, r *http.Request, tripClient *trip_client.TripServiceClient) {
+	tripID := r.PathValue("id")
+
+	resp, err := tripClient.GetTrip(r.Context(), &pb.GetTripRequest{TripId: tripID})
+	if err != nil {
+		http.Error(w, "Failed to get trip", http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, resp)
+}

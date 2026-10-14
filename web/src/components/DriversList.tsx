@@ -5,6 +5,7 @@ import {Card, CardContent, CardDescription, CardHeader, CardTitle} from "@/compo
 import {Avatar, AvatarFallback, AvatarImage} from "@/components/ui/avatar"
 import {Car} from 'lucide-react'
 import {Driver} from '@/hooks/useNearbyDrivers'
+import {disableMapPropagation} from '@/lib/mapInteractions'
 
 interface DriverListProps {
   drivers: Driver[]
@@ -20,7 +21,7 @@ export function DriverList({ drivers, onSelectDriver }: DriverListProps) {
   }, [drivers])
 
   return (
-    <Card className="w-full max-w-sm z-[9999] absolute top-0 right-0">
+    <Card ref={disableMapPropagation} className="w-full max-w-sm z-[9999] absolute top-0 right-0">
       <CardHeader>
         <CardTitle>Available Drivers</CardTitle>
         <CardDescription>Select a driver to request a ride</CardDescription>

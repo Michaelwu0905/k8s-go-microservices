@@ -11,9 +11,9 @@ import icon from 'leaflet/dist/images/marker-icon.png'
 import iconShadow from 'leaflet/dist/images/marker-shadow.png'
 import { MapClickHandler } from './MapClickHandler';
 import { DriverList } from './DriversList';
-import { Button } from './ui/button';
 import { RequestRideProps, RouteInfo } from "@/types";
 import { RoutingControl } from "@/components/RoutingControl";
+import { RideConfirmationCard } from "@/components/RideConfirmationCard";
 import { API_URL } from '../constants';
 
 const DefaultIcon = L.icon({
@@ -29,11 +29,12 @@ L.Marker.prototype.options.icon = DefaultIcon
 export function NearbyDriversMap() {
     const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null)
     const [route, setRoute] = useState<[number, number][]>([])
+    const [tripInfo, setTripInfo] = useState<{ tripId: string; distance: number; duration: number } | null>(null)
     const mapRef = useRef<L.Map>(null)
 
     const location = {
-        latitude: 37.7749,
-        longitude: -122.4194,
+        latitude: 39.9087,
+        longitude: 116.3975,
     };
 
     const [destination, setDestination] = useState<[number, number] | null>(null)
@@ -90,9 +91,10 @@ export function NearbyDriversMap() {
         const data = await response.json() as RouteInfo
         const route = data.route
         const parsedRoute = route.geometry[0].coordinates
-            .map((coord) => [coord.longitude, coord.latitude] as [number, number])
+            .map((coord) => [coord.latitude, coord.longitude] as [number, number])
 
         setRoute(parsedRoute)
+        setTripInfo({ tripId: data.trip_id, distance: route.distance, duration: route.duration })
         return data
     }
 
@@ -158,12 +160,14 @@ export function NearbyDriversMap() {
                     <p className="text-lg font-semibold text-gray-500">Click on the map to set a destination</p>
                 </div>
             )}
-            {selectedDriver && (
-                <div className="mt-4 z-[9999] absolute bottom-0 right-0">
-                    <Button className="w-full">
-                        Request Ride with {selectedDriver.driver_id}
-                    </Button>
-                </div>
+            {selectedDriver && tripInfo && (
+                <RideConfirmationCard
+                    driver={selectedDriver}
+                    tripId={tripInfo.tripId}
+                    distance={tripInfo.distance}
+                    duration={tripInfo.duration}
+                    onCancel={() => setSelectedDriver(null)}
+                />
             )}
             <RoutingControl
                 route={route}
