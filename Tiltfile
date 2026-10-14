@@ -3,6 +3,9 @@ load('ext://restart_process', 'docker_build_with_restart')
 default_registry('192.168.64.4:5000')
 allow_k8s_contexts('default')
 
+k8s_yaml('./infra/development/k8s/postgres.yaml')
+k8s_resource('postgres')
+
 ### API Gateway ###
 
 gateway_compile_cmd = 'CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o build/api-gateway ./services/api-gateway'
@@ -12,7 +15,7 @@ if os.name == 'nt':
 local_resource(
   'api-gateway-compile',
   gateway_compile_cmd,
-  deps=['./services/api-gateway'])
+  deps=['./services/api-gateway', './shared', './go.mod', './go.sum'])
 
 
 docker_build_with_restart(
@@ -45,7 +48,7 @@ if os.name == 'nt':
 local_resource(
   'driver-service-compile',
   driver_compile_cmd,
-  deps=['./services/driver-service'])
+  deps=['./services/driver-service', './shared', './go.mod', './go.sum'])
 
 docker_build_with_restart(
   'ride-sharing/driver-service',
@@ -77,7 +80,7 @@ if os.name == 'nt':
 local_resource(
   'trip-service-compile',
   trip_compile_cmd,
-  deps=['./services/trip-service'])
+  deps=['./services/trip-service', './shared', './go.mod', './go.sum'])
 
 docker_build_with_restart(
   'ride-sharing/trip-service',
@@ -95,6 +98,6 @@ docker_build_with_restart(
 )
 
 k8s_yaml('./infra/development/k8s/trip-service-deployment.yaml')
-k8s_resource('trip-service', resource_deps=['trip-service-compile'])
+k8s_resource('trip-service', resource_deps=['trip-service-compile', 'postgres'])
 
 ### End of Trip Service ###

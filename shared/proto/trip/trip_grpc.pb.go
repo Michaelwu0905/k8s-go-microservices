@@ -19,9 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	TripService_CreateTrip_FullMethodName = "/trip.TripService/CreateTrip"
-	TripService_AcceptTrip_FullMethodName = "/trip.TripService/AcceptTrip"
-	TripService_GetTrip_FullMethodName    = "/trip.TripService/GetTrip"
+	TripService_CreateTrip_FullMethodName       = "/trip.TripService/CreateTrip"
+	TripService_AcceptTrip_FullMethodName       = "/trip.TripService/AcceptTrip"
+	TripService_GetTrip_FullMethodName          = "/trip.TripService/GetTrip"
+	TripService_ListTrips_FullMethodName        = "/trip.TripService/ListTrips"
+	TripService_UpdateTripStatus_FullMethodName = "/trip.TripService/UpdateTripStatus"
+	TripService_WatchTrips_FullMethodName       = "/trip.TripService/WatchTrips"
 )
 
 // TripServiceClient is the client API for TripService service.
@@ -31,6 +34,9 @@ type TripServiceClient interface {
 	CreateTrip(ctx context.Context, in *CreateTripRequest, opts ...grpc.CallOption) (*CreateTripResponse, error)
 	AcceptTrip(ctx context.Context, in *AcceptTripRequest, opts ...grpc.CallOption) (*AcceptTripResponse, error)
 	GetTrip(ctx context.Context, in *GetTripRequest, opts ...grpc.CallOption) (*GetTripResponse, error)
+	ListTrips(ctx context.Context, in *ListTripsRequest, opts ...grpc.CallOption) (*ListTripsResponse, error)
+	UpdateTripStatus(ctx context.Context, in *UpdateTripStatusRequest, opts ...grpc.CallOption) (*GetTripResponse, error)
+	WatchTrips(ctx context.Context, in *WatchTripsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListTripsResponse], error)
 }
 
 type tripServiceClient struct {
@@ -71,6 +77,45 @@ func (c *tripServiceClient) GetTrip(ctx context.Context, in *GetTripRequest, opt
 	return out, nil
 }
 
+func (c *tripServiceClient) ListTrips(ctx context.Context, in *ListTripsRequest, opts ...grpc.CallOption) (*ListTripsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListTripsResponse)
+	err := c.cc.Invoke(ctx, TripService_ListTrips_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tripServiceClient) UpdateTripStatus(ctx context.Context, in *UpdateTripStatusRequest, opts ...grpc.CallOption) (*GetTripResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetTripResponse)
+	err := c.cc.Invoke(ctx, TripService_UpdateTripStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *tripServiceClient) WatchTrips(ctx context.Context, in *WatchTripsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListTripsResponse], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &TripService_ServiceDesc.Streams[0], TripService_WatchTrips_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[WatchTripsRequest, ListTripsResponse]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type TripService_WatchTripsClient = grpc.ServerStreamingClient[ListTripsResponse]
+
 // TripServiceServer is the server API for TripService service.
 // All implementations must embed UnimplementedTripServiceServer
 // for forward compatibility.
@@ -78,6 +123,9 @@ type TripServiceServer interface {
 	CreateTrip(context.Context, *CreateTripRequest) (*CreateTripResponse, error)
 	AcceptTrip(context.Context, *AcceptTripRequest) (*AcceptTripResponse, error)
 	GetTrip(context.Context, *GetTripRequest) (*GetTripResponse, error)
+	ListTrips(context.Context, *ListTripsRequest) (*ListTripsResponse, error)
+	UpdateTripStatus(context.Context, *UpdateTripStatusRequest) (*GetTripResponse, error)
+	WatchTrips(*WatchTripsRequest, grpc.ServerStreamingServer[ListTripsResponse]) error
 	mustEmbedUnimplementedTripServiceServer()
 }
 
@@ -96,6 +144,15 @@ func (UnimplementedTripServiceServer) AcceptTrip(context.Context, *AcceptTripReq
 }
 func (UnimplementedTripServiceServer) GetTrip(context.Context, *GetTripRequest) (*GetTripResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetTrip not implemented")
+}
+func (UnimplementedTripServiceServer) ListTrips(context.Context, *ListTripsRequest) (*ListTripsResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ListTrips not implemented")
+}
+func (UnimplementedTripServiceServer) UpdateTripStatus(context.Context, *UpdateTripStatusRequest) (*GetTripResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateTripStatus not implemented")
+}
+func (UnimplementedTripServiceServer) WatchTrips(*WatchTripsRequest, grpc.ServerStreamingServer[ListTripsResponse]) error {
+	return status.Error(codes.Unimplemented, "method WatchTrips not implemented")
 }
 func (UnimplementedTripServiceServer) mustEmbedUnimplementedTripServiceServer() {}
 func (UnimplementedTripServiceServer) testEmbeddedByValue()                     {}
@@ -172,6 +229,53 @@ func _TripService_GetTrip_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TripService_ListTrips_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListTripsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TripServiceServer).ListTrips(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TripService_ListTrips_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TripServiceServer).ListTrips(ctx, req.(*ListTripsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TripService_UpdateTripStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateTripStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TripServiceServer).UpdateTripStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TripService_UpdateTripStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TripServiceServer).UpdateTripStatus(ctx, req.(*UpdateTripStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TripService_WatchTrips_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(WatchTripsRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(TripServiceServer).WatchTrips(m, &grpc.GenericServerStream[WatchTripsRequest, ListTripsResponse]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type TripService_WatchTripsServer = grpc.ServerStreamingServer[ListTripsResponse]
+
 // TripService_ServiceDesc is the grpc.ServiceDesc for TripService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -191,7 +295,21 @@ var TripService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetTrip",
 			Handler:    _TripService_GetTrip_Handler,
 		},
+		{
+			MethodName: "ListTrips",
+			Handler:    _TripService_ListTrips_Handler,
+		},
+		{
+			MethodName: "UpdateTripStatus",
+			Handler:    _TripService_UpdateTripStatus_Handler,
+		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "WatchTrips",
+			Handler:       _TripService_WatchTrips_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "trip.proto",
 }

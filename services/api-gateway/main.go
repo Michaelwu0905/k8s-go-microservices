@@ -40,29 +40,7 @@ func main() {
 		handleDriversWebSocket(w, r, driverClient)
 	})
 
-	http.HandleFunc("/trip", enableCORS(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		handleCreateTrip(w, r, tripClient)
-	}))
-
-	http.HandleFunc("/trip/accept", enableCORS(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		handleAcceptTrip(w, r, tripClient)
-	}))
-
-	http.HandleFunc("/trip/{id}", enableCORS(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-		handleGetTrip(w, r, tripClient)
-	}))
+	registerTripRoutes(http.DefaultServeMux, tripClient)
 
 	log.Printf("Starting api gateway on port %s", HttpAddr)
 	log.Fatal(http.ListenAndServe(HttpAddr, nil))

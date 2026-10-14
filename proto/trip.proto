@@ -8,6 +8,9 @@ service TripService {
   rpc CreateTrip(CreateTripRequest) returns (CreateTripResponse);
   rpc AcceptTrip(AcceptTripRequest) returns (AcceptTripResponse);
   rpc GetTrip(GetTripRequest) returns (GetTripResponse);
+  rpc ListTrips(ListTripsRequest) returns (ListTripsResponse);
+  rpc UpdateTripStatus(UpdateTripStatusRequest) returns (GetTripResponse);
+  rpc WatchTrips(WatchTripsRequest) returns (stream ListTripsResponse);
 }
 
 enum TripStatus {
@@ -17,11 +20,13 @@ enum TripStatus {
   TRIP_STATUS_ARRIVED = 3;
   TRIP_STATUS_IN_TRIP = 4;
   TRIP_STATUS_COMPLETED = 5;
+  TRIP_STATUS_CANCELLED = 6;
 }
 
 message CreateTripRequest {
   Coordinate start_location = 1;
   Coordinate end_location = 2;
+  string rider_id = 3;
 }
 
 message Coordinate {
@@ -43,6 +48,7 @@ message CreateTripResponse {
   string trip_id = 1;
   Route route = 2;
   TripStatus status = 3;
+  Trip trip = 4;
 }
 
 message AcceptTripRequest {
@@ -53,6 +59,7 @@ message AcceptTripRequest {
 message AcceptTripResponse {
   string trip_id = 1;
   TripStatus status = 2;
+  Trip trip = 3;
 }
 
 message GetTripRequest {
@@ -62,4 +69,40 @@ message GetTripRequest {
 message GetTripResponse {
   string trip_id = 1;
   TripStatus status = 2;
+  Trip trip = 3;
+}
+
+message Trip {
+  string trip_id = 1;
+  TripStatus status = 2;
+  Route route = 3;
+  Coordinate pickup = 4;
+  Coordinate destination = 5;
+  string driver_id = 6;
+  string rider_id = 7;
+  string created_at = 8;
+  string updated_at = 9;
+  int64 version = 10;
+}
+
+message ListTripsRequest {
+  string driver_id = 1;
+  string rider_id = 2;
+}
+
+message ListTripsResponse {
+  repeated Trip trips = 1;
+}
+
+message UpdateTripStatusRequest {
+  string trip_id = 1;
+  TripStatus status = 2;
+  string driver_id = 3;
+  string rider_id = 4;
+}
+
+message WatchTripsRequest {
+  string trip_id = 1;
+  string driver_id = 2;
+  string rider_id = 3;
 }

@@ -1,131 +1,48 @@
 'use client';
 
-import { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Driver } from '@/hooks/useNearbyDrivers';
-import { API_URL } from '@/constants';
 import { disableMapPropagation } from '@/lib/mapInteractions';
+import { formatDistance, formatDuration, formatLocation } from '@/lib/trips';
+import { Location, Trip, TripStatus, tripStatusLabels } from '@/types';
 
 interface RideConfirmationCardProps {
-  driver: Driver;
-  tripId: string;
-  distance: number; // 米
-  duration: number; // 秒
+  trip: Trip | null;
+  destination: Location | null;
+  busy: boolean;
+  error: string | null;
+  canRequest: boolean;
+  onRequest: () => void;
   onCancel: () => void;
+  onReset: () => void;
 }
 
-type OrderStatus = 'confirming' | 'requesting' | 'accepted';
-
-function formatDistance(meters: number): string {
-  if (meters < 1000) return `${Math.round(meters)} 米`;
-  return `${(meters / 1000).toFixed(1)} 公里`;
-}
-
-function formatDuration(seconds: number): string {
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 1) return '1 分钟内';
-  return `约 ${minutes} 分钟`;
-}
-
-function calcPrice(meters: number): string {
-  const km = meters / 1000;
-  const baseFare = 13; // 起步价（含 3 公里）
-  const perKm = 2.3;
-  const price = km <= 3 ? baseFare : baseFare + (km - 3) * perKm;
-  return `¥${price.toFixed(1)}`;
-}
-
-export function RideConfirmationCard({ driver, tripId, distance, duration, onCancel }: RideConfirmationCardProps) {
-  const [status, setStatus] = useState<OrderStatus>('confirming');
-  const [error, setError] = useState<string | null>(null);
-
-  const handleConfirm = async () => {
-    setStatus('requesting');
-    setError(null);
-    try {
-      const resp = await fetch(`${API_URL}/trip/accept`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ trip_id: tripId, driver_id: driver.driver_id }),
-      });
-      if (!resp.ok) {
-        throw new Error(`请求失败: HTTP ${resp.status}`);
-      }
-      setStatus('accepted');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '请求失败');
-      setStatus('confirming');
-    }
-  };
-
-  if (status === 'requesting') {
-    return (
-      <Card ref={disableMapPropagation} className="w-full max-w-sm z-[9999] absolute bottom-4 right-4">
-        <CardHeader>
-          <CardTitle>正在为您匹配司机</CardTitle>
-          <CardDescription>{driver.driver_id} 正在接单…</CardDescription>
-        </CardHeader>
-        <CardContent className="flex items-center justify-center py-6">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (status === 'accepted') {
-    return (
-      <Card ref={disableMapPropagation} className="w-full max-w-sm z-[9999] absolute bottom-4 right-4">
-        <CardHeader>
-          <CardTitle>司机已接单 ✓</CardTitle>
-          <CardDescription>{driver.driver_id} 正在赶来接您</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid grid-cols-3 gap-2 text-sm">
-            <div>
-              <p className="text-muted-foreground">距离</p>
-              <p className="font-semibold">{formatDistance(distance)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">预计时长</p>
-              <p className="font-semibold">{formatDuration(duration)}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">预估价格</p>
-              <p className="font-semibold text-primary">{calcPrice(distance)}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
+export function RideConfirmationCard({ trip, destination, busy, error, canRequest, onRequest, onCancel, onReset }: RideConfirmationCardProps) {
+  const terminal = trip && [TripStatus.Completed, TripStatus.Cancelled].includes(trip.status);
   return (
-    <Card ref={disableMapPropagation} className="w-full max-w-sm z-[9999] absolute bottom-4 right-4">
+    <Card ref={disableMapPropagation} className="absolute bottom-4 right-4 z-[1000] w-[calc(100%-2rem)] max-w-sm">
       <CardHeader>
-        <CardTitle>确认行程</CardTitle>
-        <CardDescription>司机 {driver.driver_id} · Toyota Camry</CardDescription>
+        <CardTitle>{trip ? tripStatusLabels[trip.status] : destination ? '确认叫车' : '选择目的地'}</CardTitle>
+        <CardDescription>
+          {trip ? `订单 ${trip.trip_id.slice(0, 8)}` : '点击地图选择目的地，上车点为天安门附近。'}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-3 gap-2 text-sm">
-          <div>
-            <p className="text-muted-foreground">距离</p>
-            <p className="font-semibold">{formatDistance(distance)}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground">预计时长</p>
-            <p className="font-semibold">{formatDuration(duration)}</p>
-          </div>
-          <div>
-            <p className="text-muted-foreground">预估价格</p>
-            <p className="font-semibold text-primary">{calcPrice(distance)}</p>
-          </div>
-        </div>
-        {error && <p className="text-sm text-destructive">{error}</p>}
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex-1" onClick={onCancel}>取消</Button>
-          <Button className="flex-1" onClick={handleConfirm}>确认叫车</Button>
-        </div>
+        {trip ? (
+          <>
+            <p className="text-sm">{trip.driver_id ? `服务司机：${trip.driver_id}` : '订单已发布，请在司机端接单。'}</p>
+            {trip.status === TripStatus.Arrived && <p className="text-sm">司机已到上车点，请准备上车。</p>}
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div><p className="text-muted-foreground">行程距离</p><p>{formatDistance(trip.route.distance)}</p></div>
+              <div><p className="text-muted-foreground">预计时长</p><p>{formatDuration(trip.route.duration)}</p></div>
+            </div>
+            <p className="text-xs text-muted-foreground">状态更新于 {new Date(trip.updated_at).toLocaleTimeString('zh-CN')}</p>
+          </>
+        ) : destination && <p className="text-sm">目的地：{formatLocation(destination)}</p>}
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        {!trip && destination && <Button disabled={busy || !canRequest} className="w-full" onClick={onRequest}>{busy ? '正在创建订单…' : '确认叫车'}</Button>}
+        {trip && trip.status <= TripStatus.Arrived && <Button variant="outline" disabled={busy} className="w-full" onClick={onCancel}>{busy ? '正在取消…' : '取消订单'}</Button>}
+        {terminal && <Button className="w-full" onClick={onReset}>再叫一辆</Button>}
       </CardContent>
     </Card>
   );

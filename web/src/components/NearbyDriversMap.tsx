@@ -1,20 +1,22 @@
 'use client';
 
 import 'leaflet/dist/leaflet.css';
-import { Driver, useNearbyDrivers } from '@/hooks/useNearbyDrivers';
+import { useNearbyDrivers } from '@/hooks/useNearbyDrivers';
 import { MapContainer, Marker, Popup, Rectangle, TileLayer } from 'react-leaflet'
 import L from 'leaflet';
 import { decodeGeoHash } from '@/utils/geohash';
-import { useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRiderIdentity, useTripFeed } from '@/hooks/useTripFeed';
+import { disableMapPropagation } from '@/lib/mapInteractions';
+import { tripRequest } from '@/lib/trips';
 // Fix for default marker icon
 import icon from 'leaflet/dist/images/marker-icon.png'
 import iconShadow from 'leaflet/dist/images/marker-shadow.png'
 import { MapClickHandler } from './MapClickHandler';
-import { DriverList } from './DriversList';
-import { RequestRideProps, RouteInfo } from "@/types";
+import { isActiveTrip, Trip, TripStatus } from "@/types";
 import { RoutingControl } from "@/components/RoutingControl";
 import { RideConfirmationCard } from "@/components/RideConfirmationCard";
-import { API_URL } from '../constants';
 
 const DefaultIcon = L.icon({
     iconUrl: icon.src,
@@ -27,28 +29,56 @@ L.Marker.prototype.options.icon = DefaultIcon
 
 
 export function NearbyDriversMap() {
-    const [selectedDriver, setSelectedDriver] = useState<Driver | null>(null)
-    const [route, setRoute] = useState<[number, number][]>([])
-    const [tripInfo, setTripInfo] = useState<{ tripId: string; distance: number; duration: number } | null>(null)
-    const mapRef = useRef<L.Map>(null)
+    const riderId = useRiderIdentity();
+    const { trips, connected, ready, updateTrip } = useTripFeed({ riderId });
+    const [trackedId, setTrackedId] = useState('');
+    const [destination, setDestination] = useState<[number, number] | null>(null);
+    const [busy, setBusy] = useState(false);
+    const [requestError, setRequestError] = useState<string | null>(null);
+    const activeTrip = trips.find(isActiveTrip);
+    const trip = trips.find(item => item.trip_id === trackedId) ?? activeTrip ?? null;
+    const route = trip?.route.geometry[0]?.coordinates.map(point => [point.latitude, point.longitude] as [number, number]) ?? [];
+    const location = { latitude: 39.9087, longitude: 116.3975 };
+    const { drivers, error } = useNearbyDrivers(location);
 
-    const location = {
-        latitude: 39.9087,
-        longitude: 116.3975,
+    useEffect(() => {
+        if (activeTrip) setTrackedId(activeTrip.trip_id);
+    }, [activeTrip]);
+
+    const handleMapClick = (e: L.LeafletMouseEvent) => {
+        if (trip || busy) return;
+        setDestination([e.latlng.lat, e.latlng.lng]);
+        setRequestError(null);
     };
 
-    const [destination, setDestination] = useState<[number, number] | null>(null)
+    const requestRide = async () => {
+        if (!destination || !riderId || busy) return;
+        setBusy(true);
+        setRequestError(null);
+        try {
+            const created = await tripRequest<Trip>('/trip', 'POST', {
+                rider_id: riderId, pickup: location,
+                destination: { latitude: destination[0], longitude: destination[1] },
+            });
+            setTrackedId(created.trip_id);
+            updateTrip(created);
+        } catch (error) {
+            setRequestError(error instanceof Error ? error.message : '创建订单失败');
+        } finally { setBusy(false); }
+    };
 
-    const handleMapClick = async (e: L.LeafletMouseEvent) => {
-        setDestination([e.latlng.lat, e.latlng.lng])
-        
-        await requestRide({
-            pickup: [location.latitude, location.longitude],
-            destination: [e.latlng.lat, e.latlng.lng],
-        })
-    }
-
-    const { drivers, error } = useNearbyDrivers(location);
+    const cancelRide = async () => {
+        if (!trip || busy) return;
+        setBusy(true);
+        setRequestError(null);
+        try {
+            updateTrip(await tripRequest<Trip>(`/trip/${trip.trip_id}/status`, 'PATCH', {
+                rider_id: riderId, status: TripStatus.Cancelled,
+            }));
+        } catch (error) {
+            setRequestError(error instanceof Error ? error.message : '取消订单失败');
+        } finally { setBusy(false); }
+    };
 
     const userMarker = new L.Icon({
         iconUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ed/Map_pin_icon.svg/176px-Map_pin_icon.svg.png",
@@ -71,43 +101,11 @@ export function NearbyDriversMap() {
         ];
     };
 
-    const requestRide = async (props: RequestRideProps): Promise<RouteInfo> => {
-        const { pickup, destination } = props
-        const payload = {
-            pickup: {
-                latitude: pickup[0],
-                longitude: pickup[1],
-            },
-            destination: {
-                latitude: destination[0],
-                longitude: destination[1],
-            },
-        }
-
-        const response = await fetch(`${API_URL}/trip`, {
-            method: 'POST',
-            body: JSON.stringify(payload),
-        })
-        const data = await response.json() as RouteInfo
-        const route = data.route
-        const parsedRoute = route.geometry[0].coordinates
-            .map((coord) => [coord.latitude, coord.longitude] as [number, number])
-
-        setRoute(parsedRoute)
-        setTripInfo({ tripId: data.trip_id, distance: route.distance, duration: route.duration })
-        return data
-    }
-
-    if (error) {
-        return <div>Error: {error}</div>;
-    }
-
     return (
         <MapContainer
             center={[location.latitude, location.longitude]}
             zoom={13}
             style={{ height: '100vh', width: '100%' }}
-            ref={mapRef}
         >
             <TileLayer
                 url={`https://t0.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${process.env.NEXT_PUBLIC_TIANDITU_KEY}`}
@@ -148,27 +146,28 @@ export function NearbyDriversMap() {
                     </Popup>
                 </Marker>
             ))}
-            {destination && (
-                <Marker position={destination} icon={userMarker}>
-                    <Popup>Destination</Popup>
+            {(trip?.destination || destination) && (
+                <Marker position={trip ? [trip.destination.latitude, trip.destination.longitude] : destination!} icon={userMarker}>
+                    <Popup>目的地</Popup>
                 </Marker>
             )}
-            {destination ? (
-                <DriverList drivers={drivers} onSelectDriver={setSelectedDriver} />
-            ) : (
-                <div className="flex items-center justify-center h-full">
-                    <p className="text-lg font-semibold text-gray-500">Click on the map to set a destination</p>
+            <div ref={disableMapPropagation} className="absolute right-4 top-4 z-[1000] max-w-[calc(100%-5rem)] rounded-xl border bg-background p-3 shadow">
+                <div className="flex items-center gap-4 text-sm">
+                    <span>{connected ? '订单实时同步中' : ready ? '连接中断，正在重连…' : '正在恢复订单…'}</span>
+                    <Link href="/driver" className="font-medium underline">司机端</Link>
                 </div>
-            )}
-            {selectedDriver && tripInfo && (
-                <RideConfirmationCard
-                    driver={selectedDriver}
-                    tripId={tripInfo.tripId}
-                    distance={tripInfo.distance}
-                    duration={tripInfo.duration}
-                    onCancel={() => setSelectedDriver(null)}
-                />
-            )}
+                {error && <p className="mt-1 text-xs text-muted-foreground">司机位置暂不可用，订单仍可操作。</p>}
+            </div>
+            <RideConfirmationCard
+                trip={trip}
+                destination={destination ? { latitude: destination[0], longitude: destination[1] } : null}
+                busy={busy}
+                error={requestError}
+                canRequest={ready && connected}
+                onRequest={requestRide}
+                onCancel={cancelRide}
+                onReset={() => { setTrackedId(''); setDestination(null); setRequestError(null); }}
+            />
             <RoutingControl
                 route={route}
             />

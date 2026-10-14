@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net"
+	"os"
+	"time"
 
 	"google.golang.org/grpc"
 )
@@ -10,6 +13,17 @@ import (
 var GrpcAddr = ":9093"
 
 func main() {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		log.Fatal("DATABASE_URL is required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	store, err := NewTripStore(ctx, databaseURL)
+	cancel()
+	if err != nil {
+		log.Fatalf("Initialize PostgreSQL: %v", err)
+	}
+	defer store.pool.Close()
 	// Start gRPC server
 	lis, err := net.Listen("tcp", GrpcAddr)
 	if err != nil {
@@ -18,7 +32,7 @@ func main() {
 
 	grpcServer := grpc.NewServer()
 
-	NewGrpcHandler(grpcServer)
+	NewGrpcHandler(grpcServer, store)
 
 	log.Printf("Starting gRPC server Trip service on port %s", lis.Addr().String())
 	if err := grpcServer.Serve(lis); err != nil {

@@ -30,6 +30,7 @@ const (
 	TripStatus_TRIP_STATUS_ARRIVED     TripStatus = 3
 	TripStatus_TRIP_STATUS_IN_TRIP     TripStatus = 4
 	TripStatus_TRIP_STATUS_COMPLETED   TripStatus = 5
+	TripStatus_TRIP_STATUS_CANCELLED   TripStatus = 6
 )
 
 // Enum value maps for TripStatus.
@@ -41,6 +42,7 @@ var (
 		3: "TRIP_STATUS_ARRIVED",
 		4: "TRIP_STATUS_IN_TRIP",
 		5: "TRIP_STATUS_COMPLETED",
+		6: "TRIP_STATUS_CANCELLED",
 	}
 	TripStatus_value = map[string]int32{
 		"TRIP_STATUS_UNSPECIFIED": 0,
@@ -49,6 +51,7 @@ var (
 		"TRIP_STATUS_ARRIVED":     3,
 		"TRIP_STATUS_IN_TRIP":     4,
 		"TRIP_STATUS_COMPLETED":   5,
+		"TRIP_STATUS_CANCELLED":   6,
 	}
 )
 
@@ -83,6 +86,7 @@ type CreateTripRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	StartLocation *Coordinate            `protobuf:"bytes,1,opt,name=start_location,json=startLocation,proto3" json:"start_location,omitempty"`
 	EndLocation   *Coordinate            `protobuf:"bytes,2,opt,name=end_location,json=endLocation,proto3" json:"end_location,omitempty"`
+	RiderId       string                 `protobuf:"bytes,3,opt,name=rider_id,json=riderId,proto3" json:"rider_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -129,6 +133,13 @@ func (x *CreateTripRequest) GetEndLocation() *Coordinate {
 		return x.EndLocation
 	}
 	return nil
+}
+
+func (x *CreateTripRequest) GetRiderId() string {
+	if x != nil {
+		return x.RiderId
+	}
+	return ""
 }
 
 type Coordinate struct {
@@ -292,6 +303,7 @@ type CreateTripResponse struct {
 	TripId        string                 `protobuf:"bytes,1,opt,name=trip_id,json=tripId,proto3" json:"trip_id,omitempty"`
 	Route         *Route                 `protobuf:"bytes,2,opt,name=route,proto3" json:"route,omitempty"`
 	Status        TripStatus             `protobuf:"varint,3,opt,name=status,proto3,enum=trip.TripStatus" json:"status,omitempty"`
+	Trip          *Trip                  `protobuf:"bytes,4,opt,name=trip,proto3" json:"trip,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -345,6 +357,13 @@ func (x *CreateTripResponse) GetStatus() TripStatus {
 		return x.Status
 	}
 	return TripStatus_TRIP_STATUS_UNSPECIFIED
+}
+
+func (x *CreateTripResponse) GetTrip() *Trip {
+	if x != nil {
+		return x.Trip
+	}
+	return nil
 }
 
 type AcceptTripRequest struct {
@@ -403,6 +422,7 @@ type AcceptTripResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TripId        string                 `protobuf:"bytes,1,opt,name=trip_id,json=tripId,proto3" json:"trip_id,omitempty"`
 	Status        TripStatus             `protobuf:"varint,2,opt,name=status,proto3,enum=trip.TripStatus" json:"status,omitempty"`
+	Trip          *Trip                  `protobuf:"bytes,3,opt,name=trip,proto3" json:"trip,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -449,6 +469,13 @@ func (x *AcceptTripResponse) GetStatus() TripStatus {
 		return x.Status
 	}
 	return TripStatus_TRIP_STATUS_UNSPECIFIED
+}
+
+func (x *AcceptTripResponse) GetTrip() *Trip {
+	if x != nil {
+		return x.Trip
+	}
+	return nil
 }
 
 type GetTripRequest struct {
@@ -499,6 +526,7 @@ type GetTripResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	TripId        string                 `protobuf:"bytes,1,opt,name=trip_id,json=tripId,proto3" json:"trip_id,omitempty"`
 	Status        TripStatus             `protobuf:"varint,2,opt,name=status,proto3,enum=trip.TripStatus" json:"status,omitempty"`
+	Trip          *Trip                  `protobuf:"bytes,3,opt,name=trip,proto3" json:"trip,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -547,15 +575,363 @@ func (x *GetTripResponse) GetStatus() TripStatus {
 	return TripStatus_TRIP_STATUS_UNSPECIFIED
 }
 
+func (x *GetTripResponse) GetTrip() *Trip {
+	if x != nil {
+		return x.Trip
+	}
+	return nil
+}
+
+type Trip struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TripId        string                 `protobuf:"bytes,1,opt,name=trip_id,json=tripId,proto3" json:"trip_id,omitempty"`
+	Status        TripStatus             `protobuf:"varint,2,opt,name=status,proto3,enum=trip.TripStatus" json:"status,omitempty"`
+	Route         *Route                 `protobuf:"bytes,3,opt,name=route,proto3" json:"route,omitempty"`
+	Pickup        *Coordinate            `protobuf:"bytes,4,opt,name=pickup,proto3" json:"pickup,omitempty"`
+	Destination   *Coordinate            `protobuf:"bytes,5,opt,name=destination,proto3" json:"destination,omitempty"`
+	DriverId      string                 `protobuf:"bytes,6,opt,name=driver_id,json=driverId,proto3" json:"driver_id,omitempty"`
+	RiderId       string                 `protobuf:"bytes,7,opt,name=rider_id,json=riderId,proto3" json:"rider_id,omitempty"`
+	CreatedAt     string                 `protobuf:"bytes,8,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
+	UpdatedAt     string                 `protobuf:"bytes,9,opt,name=updated_at,json=updatedAt,proto3" json:"updated_at,omitempty"`
+	Version       int64                  `protobuf:"varint,10,opt,name=version,proto3" json:"version,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Trip) Reset() {
+	*x = Trip{}
+	mi := &file_trip_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Trip) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Trip) ProtoMessage() {}
+
+func (x *Trip) ProtoReflect() protoreflect.Message {
+	mi := &file_trip_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Trip.ProtoReflect.Descriptor instead.
+func (*Trip) Descriptor() ([]byte, []int) {
+	return file_trip_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *Trip) GetTripId() string {
+	if x != nil {
+		return x.TripId
+	}
+	return ""
+}
+
+func (x *Trip) GetStatus() TripStatus {
+	if x != nil {
+		return x.Status
+	}
+	return TripStatus_TRIP_STATUS_UNSPECIFIED
+}
+
+func (x *Trip) GetRoute() *Route {
+	if x != nil {
+		return x.Route
+	}
+	return nil
+}
+
+func (x *Trip) GetPickup() *Coordinate {
+	if x != nil {
+		return x.Pickup
+	}
+	return nil
+}
+
+func (x *Trip) GetDestination() *Coordinate {
+	if x != nil {
+		return x.Destination
+	}
+	return nil
+}
+
+func (x *Trip) GetDriverId() string {
+	if x != nil {
+		return x.DriverId
+	}
+	return ""
+}
+
+func (x *Trip) GetRiderId() string {
+	if x != nil {
+		return x.RiderId
+	}
+	return ""
+}
+
+func (x *Trip) GetCreatedAt() string {
+	if x != nil {
+		return x.CreatedAt
+	}
+	return ""
+}
+
+func (x *Trip) GetUpdatedAt() string {
+	if x != nil {
+		return x.UpdatedAt
+	}
+	return ""
+}
+
+func (x *Trip) GetVersion() int64 {
+	if x != nil {
+		return x.Version
+	}
+	return 0
+}
+
+type ListTripsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DriverId      string                 `protobuf:"bytes,1,opt,name=driver_id,json=driverId,proto3" json:"driver_id,omitempty"`
+	RiderId       string                 `protobuf:"bytes,2,opt,name=rider_id,json=riderId,proto3" json:"rider_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListTripsRequest) Reset() {
+	*x = ListTripsRequest{}
+	mi := &file_trip_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListTripsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListTripsRequest) ProtoMessage() {}
+
+func (x *ListTripsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_trip_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListTripsRequest.ProtoReflect.Descriptor instead.
+func (*ListTripsRequest) Descriptor() ([]byte, []int) {
+	return file_trip_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *ListTripsRequest) GetDriverId() string {
+	if x != nil {
+		return x.DriverId
+	}
+	return ""
+}
+
+func (x *ListTripsRequest) GetRiderId() string {
+	if x != nil {
+		return x.RiderId
+	}
+	return ""
+}
+
+type ListTripsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Trips         []*Trip                `protobuf:"bytes,1,rep,name=trips,proto3" json:"trips,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListTripsResponse) Reset() {
+	*x = ListTripsResponse{}
+	mi := &file_trip_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListTripsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListTripsResponse) ProtoMessage() {}
+
+func (x *ListTripsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_trip_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListTripsResponse.ProtoReflect.Descriptor instead.
+func (*ListTripsResponse) Descriptor() ([]byte, []int) {
+	return file_trip_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *ListTripsResponse) GetTrips() []*Trip {
+	if x != nil {
+		return x.Trips
+	}
+	return nil
+}
+
+type UpdateTripStatusRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TripId        string                 `protobuf:"bytes,1,opt,name=trip_id,json=tripId,proto3" json:"trip_id,omitempty"`
+	Status        TripStatus             `protobuf:"varint,2,opt,name=status,proto3,enum=trip.TripStatus" json:"status,omitempty"`
+	DriverId      string                 `protobuf:"bytes,3,opt,name=driver_id,json=driverId,proto3" json:"driver_id,omitempty"`
+	RiderId       string                 `protobuf:"bytes,4,opt,name=rider_id,json=riderId,proto3" json:"rider_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateTripStatusRequest) Reset() {
+	*x = UpdateTripStatusRequest{}
+	mi := &file_trip_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateTripStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateTripStatusRequest) ProtoMessage() {}
+
+func (x *UpdateTripStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_trip_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpdateTripStatusRequest.ProtoReflect.Descriptor instead.
+func (*UpdateTripStatusRequest) Descriptor() ([]byte, []int) {
+	return file_trip_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *UpdateTripStatusRequest) GetTripId() string {
+	if x != nil {
+		return x.TripId
+	}
+	return ""
+}
+
+func (x *UpdateTripStatusRequest) GetStatus() TripStatus {
+	if x != nil {
+		return x.Status
+	}
+	return TripStatus_TRIP_STATUS_UNSPECIFIED
+}
+
+func (x *UpdateTripStatusRequest) GetDriverId() string {
+	if x != nil {
+		return x.DriverId
+	}
+	return ""
+}
+
+func (x *UpdateTripStatusRequest) GetRiderId() string {
+	if x != nil {
+		return x.RiderId
+	}
+	return ""
+}
+
+type WatchTripsRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TripId        string                 `protobuf:"bytes,1,opt,name=trip_id,json=tripId,proto3" json:"trip_id,omitempty"`
+	DriverId      string                 `protobuf:"bytes,2,opt,name=driver_id,json=driverId,proto3" json:"driver_id,omitempty"`
+	RiderId       string                 `protobuf:"bytes,3,opt,name=rider_id,json=riderId,proto3" json:"rider_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WatchTripsRequest) Reset() {
+	*x = WatchTripsRequest{}
+	mi := &file_trip_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WatchTripsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WatchTripsRequest) ProtoMessage() {}
+
+func (x *WatchTripsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_trip_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WatchTripsRequest.ProtoReflect.Descriptor instead.
+func (*WatchTripsRequest) Descriptor() ([]byte, []int) {
+	return file_trip_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *WatchTripsRequest) GetTripId() string {
+	if x != nil {
+		return x.TripId
+	}
+	return ""
+}
+
+func (x *WatchTripsRequest) GetDriverId() string {
+	if x != nil {
+		return x.DriverId
+	}
+	return ""
+}
+
+func (x *WatchTripsRequest) GetRiderId() string {
+	if x != nil {
+		return x.RiderId
+	}
+	return ""
+}
+
 var File_trip_proto protoreflect.FileDescriptor
 
 const file_trip_proto_rawDesc = "" +
 	"\n" +
 	"\n" +
-	"trip.proto\x12\x04trip\"\x81\x01\n" +
+	"trip.proto\x12\x04trip\"\x9c\x01\n" +
 	"\x11CreateTripRequest\x127\n" +
 	"\x0estart_location\x18\x01 \x01(\v2\x10.trip.CoordinateR\rstartLocation\x123\n" +
-	"\fend_location\x18\x02 \x01(\v2\x10.trip.CoordinateR\vendLocation\"F\n" +
+	"\fend_location\x18\x02 \x01(\v2\x10.trip.CoordinateR\vendLocation\x12\x19\n" +
+	"\brider_id\x18\x03 \x01(\tR\ariderId\"F\n" +
 	"\n" +
 	"Coordinate\x12\x1a\n" +
 	"\blatitude\x18\x01 \x01(\x02R\blatitude\x12\x1c\n" +
@@ -565,22 +941,57 @@ const file_trip_proto_rawDesc = "" +
 	"\x05Route\x12*\n" +
 	"\bgeometry\x18\x01 \x03(\v2\x0e.trip.GeometryR\bgeometry\x12\x1a\n" +
 	"\bdistance\x18\x02 \x01(\x02R\bdistance\x12\x1a\n" +
-	"\bduration\x18\x03 \x01(\x02R\bduration\"z\n" +
+	"\bduration\x18\x03 \x01(\x02R\bduration\"\x9a\x01\n" +
 	"\x12CreateTripResponse\x12\x17\n" +
 	"\atrip_id\x18\x01 \x01(\tR\x06tripId\x12!\n" +
 	"\x05route\x18\x02 \x01(\v2\v.trip.RouteR\x05route\x12(\n" +
-	"\x06status\x18\x03 \x01(\x0e2\x10.trip.TripStatusR\x06status\"I\n" +
+	"\x06status\x18\x03 \x01(\x0e2\x10.trip.TripStatusR\x06status\x12\x1e\n" +
+	"\x04trip\x18\x04 \x01(\v2\n" +
+	".trip.TripR\x04trip\"I\n" +
 	"\x11AcceptTripRequest\x12\x17\n" +
 	"\atrip_id\x18\x01 \x01(\tR\x06tripId\x12\x1b\n" +
-	"\tdriver_id\x18\x02 \x01(\tR\bdriverId\"W\n" +
+	"\tdriver_id\x18\x02 \x01(\tR\bdriverId\"w\n" +
 	"\x12AcceptTripResponse\x12\x17\n" +
 	"\atrip_id\x18\x01 \x01(\tR\x06tripId\x12(\n" +
-	"\x06status\x18\x02 \x01(\x0e2\x10.trip.TripStatusR\x06status\")\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x10.trip.TripStatusR\x06status\x12\x1e\n" +
+	"\x04trip\x18\x03 \x01(\v2\n" +
+	".trip.TripR\x04trip\")\n" +
 	"\x0eGetTripRequest\x12\x17\n" +
-	"\atrip_id\x18\x01 \x01(\tR\x06tripId\"T\n" +
+	"\atrip_id\x18\x01 \x01(\tR\x06tripId\"t\n" +
 	"\x0fGetTripResponse\x12\x17\n" +
 	"\atrip_id\x18\x01 \x01(\tR\x06tripId\x12(\n" +
-	"\x06status\x18\x02 \x01(\x0e2\x10.trip.TripStatusR\x06status*\xa9\x01\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x10.trip.TripStatusR\x06status\x12\x1e\n" +
+	"\x04trip\x18\x03 \x01(\v2\n" +
+	".trip.TripR\x04trip\"\xda\x02\n" +
+	"\x04Trip\x12\x17\n" +
+	"\atrip_id\x18\x01 \x01(\tR\x06tripId\x12(\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x10.trip.TripStatusR\x06status\x12!\n" +
+	"\x05route\x18\x03 \x01(\v2\v.trip.RouteR\x05route\x12(\n" +
+	"\x06pickup\x18\x04 \x01(\v2\x10.trip.CoordinateR\x06pickup\x122\n" +
+	"\vdestination\x18\x05 \x01(\v2\x10.trip.CoordinateR\vdestination\x12\x1b\n" +
+	"\tdriver_id\x18\x06 \x01(\tR\bdriverId\x12\x19\n" +
+	"\brider_id\x18\a \x01(\tR\ariderId\x12\x1d\n" +
+	"\n" +
+	"created_at\x18\b \x01(\tR\tcreatedAt\x12\x1d\n" +
+	"\n" +
+	"updated_at\x18\t \x01(\tR\tupdatedAt\x12\x18\n" +
+	"\aversion\x18\n" +
+	" \x01(\x03R\aversion\"J\n" +
+	"\x10ListTripsRequest\x12\x1b\n" +
+	"\tdriver_id\x18\x01 \x01(\tR\bdriverId\x12\x19\n" +
+	"\brider_id\x18\x02 \x01(\tR\ariderId\"5\n" +
+	"\x11ListTripsResponse\x12 \n" +
+	"\x05trips\x18\x01 \x03(\v2\n" +
+	".trip.TripR\x05trips\"\x94\x01\n" +
+	"\x17UpdateTripStatusRequest\x12\x17\n" +
+	"\atrip_id\x18\x01 \x01(\tR\x06tripId\x12(\n" +
+	"\x06status\x18\x02 \x01(\x0e2\x10.trip.TripStatusR\x06status\x12\x1b\n" +
+	"\tdriver_id\x18\x03 \x01(\tR\bdriverId\x12\x19\n" +
+	"\brider_id\x18\x04 \x01(\tR\ariderId\"d\n" +
+	"\x11WatchTripsRequest\x12\x17\n" +
+	"\atrip_id\x18\x01 \x01(\tR\x06tripId\x12\x1b\n" +
+	"\tdriver_id\x18\x02 \x01(\tR\bdriverId\x12\x19\n" +
+	"\brider_id\x18\x03 \x01(\tR\ariderId*\xc4\x01\n" +
 	"\n" +
 	"TripStatus\x12\x1b\n" +
 	"\x17TRIP_STATUS_UNSPECIFIED\x10\x00\x12\x17\n" +
@@ -588,13 +999,18 @@ const file_trip_proto_rawDesc = "" +
 	"\x14TRIP_STATUS_ACCEPTED\x10\x02\x12\x17\n" +
 	"\x13TRIP_STATUS_ARRIVED\x10\x03\x12\x17\n" +
 	"\x13TRIP_STATUS_IN_TRIP\x10\x04\x12\x19\n" +
-	"\x15TRIP_STATUS_COMPLETED\x10\x052\xc7\x01\n" +
+	"\x15TRIP_STATUS_COMPLETED\x10\x05\x12\x19\n" +
+	"\x15TRIP_STATUS_CANCELLED\x10\x062\x91\x03\n" +
 	"\vTripService\x12?\n" +
 	"\n" +
 	"CreateTrip\x12\x17.trip.CreateTripRequest\x1a\x18.trip.CreateTripResponse\x12?\n" +
 	"\n" +
 	"AcceptTrip\x12\x17.trip.AcceptTripRequest\x1a\x18.trip.AcceptTripResponse\x126\n" +
-	"\aGetTrip\x12\x14.trip.GetTripRequest\x1a\x15.trip.GetTripResponseB\x18Z\x16shared/proto/trip;tripb\x06proto3"
+	"\aGetTrip\x12\x14.trip.GetTripRequest\x1a\x15.trip.GetTripResponse\x12<\n" +
+	"\tListTrips\x12\x16.trip.ListTripsRequest\x1a\x17.trip.ListTripsResponse\x12H\n" +
+	"\x10UpdateTripStatus\x12\x1d.trip.UpdateTripStatusRequest\x1a\x15.trip.GetTripResponse\x12@\n" +
+	"\n" +
+	"WatchTrips\x12\x17.trip.WatchTripsRequest\x1a\x17.trip.ListTripsResponse0\x01B\x18Z\x16shared/proto/trip;tripb\x06proto3"
 
 var (
 	file_trip_proto_rawDescOnce sync.Once
@@ -609,18 +1025,23 @@ func file_trip_proto_rawDescGZIP() []byte {
 }
 
 var file_trip_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_trip_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
+var file_trip_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
 var file_trip_proto_goTypes = []any{
-	(TripStatus)(0),            // 0: trip.TripStatus
-	(*CreateTripRequest)(nil),  // 1: trip.CreateTripRequest
-	(*Coordinate)(nil),         // 2: trip.Coordinate
-	(*Geometry)(nil),           // 3: trip.Geometry
-	(*Route)(nil),              // 4: trip.Route
-	(*CreateTripResponse)(nil), // 5: trip.CreateTripResponse
-	(*AcceptTripRequest)(nil),  // 6: trip.AcceptTripRequest
-	(*AcceptTripResponse)(nil), // 7: trip.AcceptTripResponse
-	(*GetTripRequest)(nil),     // 8: trip.GetTripRequest
-	(*GetTripResponse)(nil),    // 9: trip.GetTripResponse
+	(TripStatus)(0),                 // 0: trip.TripStatus
+	(*CreateTripRequest)(nil),       // 1: trip.CreateTripRequest
+	(*Coordinate)(nil),              // 2: trip.Coordinate
+	(*Geometry)(nil),                // 3: trip.Geometry
+	(*Route)(nil),                   // 4: trip.Route
+	(*CreateTripResponse)(nil),      // 5: trip.CreateTripResponse
+	(*AcceptTripRequest)(nil),       // 6: trip.AcceptTripRequest
+	(*AcceptTripResponse)(nil),      // 7: trip.AcceptTripResponse
+	(*GetTripRequest)(nil),          // 8: trip.GetTripRequest
+	(*GetTripResponse)(nil),         // 9: trip.GetTripResponse
+	(*Trip)(nil),                    // 10: trip.Trip
+	(*ListTripsRequest)(nil),        // 11: trip.ListTripsRequest
+	(*ListTripsResponse)(nil),       // 12: trip.ListTripsResponse
+	(*UpdateTripStatusRequest)(nil), // 13: trip.UpdateTripStatusRequest
+	(*WatchTripsRequest)(nil),       // 14: trip.WatchTripsRequest
 }
 var file_trip_proto_depIdxs = []int32{
 	2,  // 0: trip.CreateTripRequest.start_location:type_name -> trip.Coordinate
@@ -629,19 +1050,34 @@ var file_trip_proto_depIdxs = []int32{
 	3,  // 3: trip.Route.geometry:type_name -> trip.Geometry
 	4,  // 4: trip.CreateTripResponse.route:type_name -> trip.Route
 	0,  // 5: trip.CreateTripResponse.status:type_name -> trip.TripStatus
-	0,  // 6: trip.AcceptTripResponse.status:type_name -> trip.TripStatus
-	0,  // 7: trip.GetTripResponse.status:type_name -> trip.TripStatus
-	1,  // 8: trip.TripService.CreateTrip:input_type -> trip.CreateTripRequest
-	6,  // 9: trip.TripService.AcceptTrip:input_type -> trip.AcceptTripRequest
-	8,  // 10: trip.TripService.GetTrip:input_type -> trip.GetTripRequest
-	5,  // 11: trip.TripService.CreateTrip:output_type -> trip.CreateTripResponse
-	7,  // 12: trip.TripService.AcceptTrip:output_type -> trip.AcceptTripResponse
-	9,  // 13: trip.TripService.GetTrip:output_type -> trip.GetTripResponse
-	11, // [11:14] is the sub-list for method output_type
-	8,  // [8:11] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	10, // 6: trip.CreateTripResponse.trip:type_name -> trip.Trip
+	0,  // 7: trip.AcceptTripResponse.status:type_name -> trip.TripStatus
+	10, // 8: trip.AcceptTripResponse.trip:type_name -> trip.Trip
+	0,  // 9: trip.GetTripResponse.status:type_name -> trip.TripStatus
+	10, // 10: trip.GetTripResponse.trip:type_name -> trip.Trip
+	0,  // 11: trip.Trip.status:type_name -> trip.TripStatus
+	4,  // 12: trip.Trip.route:type_name -> trip.Route
+	2,  // 13: trip.Trip.pickup:type_name -> trip.Coordinate
+	2,  // 14: trip.Trip.destination:type_name -> trip.Coordinate
+	10, // 15: trip.ListTripsResponse.trips:type_name -> trip.Trip
+	0,  // 16: trip.UpdateTripStatusRequest.status:type_name -> trip.TripStatus
+	1,  // 17: trip.TripService.CreateTrip:input_type -> trip.CreateTripRequest
+	6,  // 18: trip.TripService.AcceptTrip:input_type -> trip.AcceptTripRequest
+	8,  // 19: trip.TripService.GetTrip:input_type -> trip.GetTripRequest
+	11, // 20: trip.TripService.ListTrips:input_type -> trip.ListTripsRequest
+	13, // 21: trip.TripService.UpdateTripStatus:input_type -> trip.UpdateTripStatusRequest
+	14, // 22: trip.TripService.WatchTrips:input_type -> trip.WatchTripsRequest
+	5,  // 23: trip.TripService.CreateTrip:output_type -> trip.CreateTripResponse
+	7,  // 24: trip.TripService.AcceptTrip:output_type -> trip.AcceptTripResponse
+	9,  // 25: trip.TripService.GetTrip:output_type -> trip.GetTripResponse
+	12, // 26: trip.TripService.ListTrips:output_type -> trip.ListTripsResponse
+	9,  // 27: trip.TripService.UpdateTripStatus:output_type -> trip.GetTripResponse
+	12, // 28: trip.TripService.WatchTrips:output_type -> trip.ListTripsResponse
+	23, // [23:29] is the sub-list for method output_type
+	17, // [17:23] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_trip_proto_init() }
@@ -655,7 +1091,7 @@ func file_trip_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_trip_proto_rawDesc), len(file_trip_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   9,
+			NumMessages:   14,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

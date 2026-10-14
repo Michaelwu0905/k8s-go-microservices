@@ -4,186 +4,145 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"sync"
-
+	"errors"
+	"github.com/jackc/pgx/v5"
 	pb "github.com/sikozonpc/ride-sharing/shared/proto/trip"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"time"
 )
-
-// Trip 是内存中的订单实体
-type Trip struct {
-	ID       string
-	Status   pb.TripStatus
-	DriverID string
-	Route    *pb.Route
-}
-
-// TripStore 是线程安全的订单内存存储（demo 用，生产应换成数据库）
-type TripStore struct {
-	mu    sync.RWMutex
-	trips map[string]*Trip
-}
-
-func NewTripStore() *TripStore {
-	return &TripStore{trips: make(map[string]*Trip)}
-}
-
-func (s *TripStore) Create(t *Trip) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.trips[t.ID] = t
-}
-
-func (s *TripStore) Get(id string) (*Trip, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	t, ok := s.trips[id]
-	return t, ok
-}
-
-func (s *TripStore) Update(id string, update func(*Trip)) (*Trip, bool) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	t, ok := s.trips[id]
-	if !ok {
-		return nil, false
-	}
-	update(t)
-	return t, true
-}
 
 type TripGrpcHandler struct {
 	pb.UnimplementedTripServiceServer
-
-	store *TripStore
+	store  *TripStore
+	router *RouteClient
 }
 
-func NewGrpcHandler(s *grpc.Server) {
-	handler := &TripGrpcHandler{
-		store: NewTripStore(),
-	}
-
-	pb.RegisterTripServiceServer(s, handler)
+func NewGrpcHandler(s *grpc.Server, store *TripStore) {
+	pb.RegisterTripServiceServer(s, &TripGrpcHandler{store: store, router: NewRouteClient()})
 }
 
-func generateTripID() string {
-	b := make([]byte, 8)
-	_, _ = rand.Read(b)
-	return hex.EncodeToString(b)
-}
-
-// fetchRoute 调用 OSRM 公共路由服务计算驾车路线
-func fetchRoute(pickup, destination *pb.Coordinate) (*pb.Route, error) {
-	url := fmt.Sprintf(
-		"https://router.project-osrm.org/route/v1/driving/%f,%f;%f,%f?overview=full&geometries=geojson",
-		pickup.Longitude, pickup.Latitude,
-		destination.Longitude, destination.Latitude,
-	)
-
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to fetch route: %v", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to read response: %v", err)
-	}
-
-	type OSRMResponse struct {
-		Routes []struct {
-			Distance float64 `json:"distance"`
-			Duration float64 `json:"duration"`
-			Geometry struct {
-				Coordinates [][]float64 `json:"coordinates"`
-			} `json:"geometry"`
-		} `json:"routes"`
-	}
-	var routeResp OSRMResponse
-
-	if err := json.Unmarshal(body, &routeResp); err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to parse response: %v", err)
-	}
-
-	if len(routeResp.Routes) == 0 {
-		return nil, status.Errorf(codes.Internal, "no route found")
-	}
-
-	route := routeResp.Routes[0]
-	geometry := route.Geometry.Coordinates
-	coordinates := make([]*pb.Coordinate, len(geometry))
-	for i, coord := range geometry {
-		// OSRM 返回 GeoJSON [longitude, latitude]
-		coordinates[i] = &pb.Coordinate{
-			Latitude:  float32(coord[1]),
-			Longitude: float32(coord[0]),
-		}
-	}
-
-	return &pb.Route{
-		Geometry: []*pb.Geometry{
-			{
-				Coordinates: coordinates,
-			},
-		},
-		Distance: float32(route.Distance),
-		Duration: float32(route.Duration),
-	}, nil
-}
-
-// CreateTrip 计算路线并创建订单（初始状态 PENDING）
 func (h *TripGrpcHandler) CreateTrip(ctx context.Context, req *pb.CreateTripRequest) (*pb.CreateTripResponse, error) {
-	route, err := fetchRoute(req.StartLocation, req.EndLocation)
+	if !validIdentity(req.GetRiderId()) || !validCoordinate(req.GetStartLocation()) || !validCoordinate(req.GetEndLocation()) {
+		return nil, status.Error(codes.InvalidArgument, "valid rider_id, pickup and destination are required")
+	}
+	route, err := h.router.Fetch(ctx, req.StartLocation, req.EndLocation)
 	if err != nil {
 		return nil, err
 	}
-
-	trip := &Trip{
-		ID:     generateTripID(),
-		Status: pb.TripStatus_TRIP_STATUS_PENDING,
-		Route:  route,
+	id := make([]byte, 16)
+	if _, err := rand.Read(id); err != nil {
+		return nil, status.Error(codes.Internal, "cannot generate trip ID")
 	}
-	h.store.Create(trip)
-
-	return &pb.CreateTripResponse{
-		TripId: trip.ID,
-		Route:  route,
-		Status: trip.Status,
-	}, nil
+	t, err := h.store.Create(ctx, &pb.Trip{TripId: hex.EncodeToString(id), RiderId: req.RiderId,
+		Pickup: req.StartLocation, Destination: req.EndLocation, Route: route})
+	if err != nil {
+		return nil, err
+	}
+	return &pb.CreateTripResponse{TripId: t.TripId, Status: t.Status, Route: t.Route, Trip: t}, nil
 }
 
-// AcceptTrip 司机接单：状态 PENDING -> ACCEPTED
 func (h *TripGrpcHandler) AcceptTrip(ctx context.Context, req *pb.AcceptTripRequest) (*pb.AcceptTripResponse, error) {
-	trip, ok := h.store.Update(req.TripId, func(t *Trip) {
-		t.Status = pb.TripStatus_TRIP_STATUS_ACCEPTED
-		t.DriverID = req.DriverId
-	})
-	if !ok {
-		return nil, status.Errorf(codes.NotFound, "trip not found: %s", req.TripId)
+	if !validIdentity(req.GetTripId()) || !validIdentity(req.GetDriverId()) {
+		return nil, status.Error(codes.InvalidArgument, "trip_id and driver_id are required")
 	}
-
-	return &pb.AcceptTripResponse{
-		TripId: trip.ID,
-		Status: trip.Status,
-	}, nil
+	t, err := h.store.ChangeStatus(ctx, req.TripId, pb.TripStatus_TRIP_STATUS_ACCEPTED, req.DriverId, "", true)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.AcceptTripResponse{TripId: t.TripId, Status: t.Status, Trip: t}, nil
 }
 
-// GetTrip 查询订单状态
 func (h *TripGrpcHandler) GetTrip(ctx context.Context, req *pb.GetTripRequest) (*pb.GetTripResponse, error) {
-	trip, ok := h.store.Get(req.TripId)
-	if !ok {
-		return nil, status.Errorf(codes.NotFound, "trip not found: %s", req.TripId)
+	if !validIdentity(req.GetTripId()) {
+		return nil, status.Error(codes.InvalidArgument, "trip_id is required")
 	}
+	t, err := h.store.Get(ctx, req.TripId)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.GetTripResponse{TripId: t.TripId, Status: t.Status, Trip: t}, nil
+}
 
-	return &pb.GetTripResponse{
-		TripId: trip.ID,
-		Status: trip.Status,
-	}, nil
+func validListFilter(driverID, riderID string) bool {
+	return driverID == "" && validIdentity(riderID) || riderID == "" && validIdentity(driverID)
+}
+
+func (h *TripGrpcHandler) ListTrips(ctx context.Context, req *pb.ListTripsRequest) (*pb.ListTripsResponse, error) {
+	if !validListFilter(req.GetDriverId(), req.GetRiderId()) {
+		return nil, status.Error(codes.InvalidArgument, "provide exactly one driver_id or rider_id")
+	}
+	trips, err := h.store.List(ctx, req.DriverId, req.RiderId)
+	return &pb.ListTripsResponse{Trips: trips}, err
+}
+
+func (h *TripGrpcHandler) UpdateTripStatus(ctx context.Context, req *pb.UpdateTripStatusRequest) (*pb.GetTripResponse, error) {
+	if !validIdentity(req.GetTripId()) || !validListFilter(req.GetDriverId(), req.GetRiderId()) {
+		return nil, status.Error(codes.InvalidArgument, "trip_id and exactly one driver_id or rider_id are required")
+	}
+	t, err := h.store.ChangeStatus(ctx, req.TripId, req.Status, req.DriverId, req.RiderId, false)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.GetTripResponse{TripId: t.TripId, Status: t.Status, Trip: t}, nil
+}
+
+func (h *TripGrpcHandler) WatchTrips(req *pb.WatchTripsRequest, stream pb.TripService_WatchTripsServer) error {
+	if req.GetTripId() != "" {
+		if !validIdentity(req.TripId) || req.DriverId != "" || req.RiderId != "" {
+			return status.Error(codes.InvalidArgument, "provide exactly one subscription filter")
+		}
+	} else if !validListFilter(req.GetDriverId(), req.GetRiderId()) {
+		return status.Error(codes.InvalidArgument, "provide a trip_id, driver_id or rider_id")
+	}
+	ctx := stream.Context()
+	// Dedicated connection: waiting subscribers must not exhaust the query pool.
+	connectCtx, cancelConnect := context.WithTimeout(ctx, 5*time.Second)
+	conn, err := pgx.Connect(connectCtx, h.store.databaseURL)
+	cancelConnect()
+	if err != nil {
+		return databaseError(err)
+	}
+	defer func() {
+		closeCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = conn.Close(closeCtx)
+	}()
+	if _, err = conn.Exec(ctx, "LISTEN trip_events"); err != nil {
+		return databaseError(err)
+	}
+	// Listen before reading the initial snapshot to avoid a subscription gap.
+	for {
+		var trips []*pb.Trip
+		snapshotCtx, cancelSnapshot := context.WithTimeout(ctx, 5*time.Second)
+		if req.TripId != "" {
+			t, err := h.store.Get(snapshotCtx, req.TripId)
+			if err != nil {
+				cancelSnapshot()
+				return err
+			}
+			trips = []*pb.Trip{t}
+		} else {
+			trips, err = h.store.List(snapshotCtx, req.DriverId, req.RiderId)
+			if err != nil {
+				cancelSnapshot()
+				return err
+			}
+		}
+		cancelSnapshot()
+		if err := stream.Send(&pb.ListTripsResponse{Trips: trips}); err != nil {
+			return err
+		}
+		waitCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		_, err = conn.WaitForNotification(waitCtx)
+		cancel()
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if err != nil && !errors.Is(err, context.DeadlineExceeded) {
+			return databaseError(err)
+		}
+		// Heartbeats reconcile state even after a temporarily interrupted connection.
+	}
 }
