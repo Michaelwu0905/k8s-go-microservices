@@ -7,7 +7,7 @@
 | 服务 | 端口 | 技术栈 | 职责 |
 |------|------|--------|------|
 | **api-gateway** | HTTP `:8081` | Go + gorilla/websocket | 统一入口，路由 `/services`、`/ws/drivers`、`/trip`，通过 gRPC 调用下游服务 |
-| **driver-service** | HTTP `:8082` / gRPC `:9092` | Go + gRPC | 司机位置管理，按预设路线移动并流式推送 |
+| **driver-service** | HTTP `:8082` / gRPC `:9092` | Go + gRPC | 持久化司机位置与在线状态，流式推送附近车辆 |
 | **trip-service** | gRPC `:9093` | Go + gRPC + pgx | 持久化订单、状态机、实时订单通知 |
 | **web** | `:3000` | Next.js 15 + React 19 + Leaflet | 地图前端（天地图底图），实时显示司机位置 |
 | **postgres** | `:5432` | PostgreSQL 16 + PVC | 订单持久化、并发约束、LISTEN/NOTIFY |
@@ -218,7 +218,7 @@ PVC 可保留 Pod 重建后的数据，但 `local-path` 绑定单个节点，并
 行锁和数据库唯一索引保证一单只能有一个司机、司机和乘客各自只有一张进行中的订单；重复状态操作不会重复推进。
 
 演示身份不是登录认证：乘客 ID 保存在浏览器 localStorage，司机身份由页面选择。接口检查身份与订单关联，但尚不能防止伪造 ID；仅用于当前开发环境。
-司机位置仍来自现有模拟路线。司机端“暂停接单”仅控制此页面的订单订阅，不代表持久化的司机在线状态。
+司机端支持设备定位或明确标注的演示行驶；位置与在线状态保存在 PostgreSQL，停止定位会下线。
 
 ### HTTP 接口
 
@@ -255,3 +255,54 @@ TEST_DATABASE_URL='postgres://ride_sharing:ride-sharing-local-dev@127.0.0.1:1543
 ```
 
 测试覆盖状态跳转、操作身份、并发抢单、司机重复接单、取消与接单竞争、跨服务实例通知，以及重新连接数据库后的订单恢复。
+
+
+## 司机定位与接驾导航
+
+司机端 `http://localhost:3000/driver` 现在提供两种位置来源：
+
+- **演示行驶**：在北京设置初始位置。接单后沿 OSRM 接驾路线每秒推进并上报位置；上车后沿目的地路线继续行驶。到达、上车和结束仍由司机手动确认。
+- **使用设备定位**：通过浏览器 `watchPosition` 获取坐标与精度，持续上报。浏览器需要定位权限和安全上下文（localhost 或 HTTPS）；地图底图使用天地图。设备定位本身可能受操作系统、浏览器及位置提供商的精度和坐标体系影响。
+
+开启任一模式会把司机设为在线；停止定位会下线。单纯打开司机页面不会自动获取设备位置。
+GPS 模式每 5 秒补报有效定位，超过 20 秒未收到新定位时停止补报；服务端把超过 30 秒未更新的位置标为过期。
+关闭页面或网络中断后，过期机制也会自动隐藏未接单的车辆。
+
+乘客地图只展示上车点 5 公里内有有效位置的在线司机；已分配司机始终保留在地图中，过期或离线时明确提示。
+接单后橙色路线表示司机到乘客上车点的接驾路线；上车后蓝色路线表示前往目的地的导航路线。
+双方可看到剩余距离和预计时长，车辆标记平滑移动；路线每 10 秒检查刷新，移动不足 80 米时复用当前路线。
+OSRM 预计时间不包含实时交通信息。定位 WebSocket 会在断线后自动重连。
+
+| 新接口 | 行为 |
+|---|---|
+| `GET /drivers/{id}` | 最近位置、有效在线状态、来源、精度和上报时间 |
+| `PUT /drivers/{id}/availability` | `{ "online": true/false }`，控制司机在线状态 |
+| `PUT /drivers/{id}/location` | `{ "location": { "latitude": …, "longitude": … }, "source": "gps"或"demo", "accuracy": … }` |
+| `GET /trip/{id}/navigation` | 从已分配司机的有效位置规划接驾或目的地路线，返回路线及阶段 |
+
+位置表由司机服务启动时自动创建；司机服务现在也需要 `DATABASE_URL`，开发清单与 Tilt 已包含该配置。
+位置数据跨服务副本共享。`/health` 会检查数据库连接。
+
+前端路线推进算法测试：
+
+```bash
+node --experimental-strip-types --test web/tests/geo.test.mjs
+```
+
+### UTM 虚拟机时间同步
+
+三台虚拟机原来的 Ubuntu 授时域名被本机代理解析到 fake-IP 地址，chrony 没有持续收到有效时间样本，造成暂停/恢复后的多天偏差。
+本次修复使用 [Cloudflare 官方公布的 NTP IP](https://developers.cloudflare.com/time-services/ntp/usage/) 绕过 fake-IP DNS，并通过 chrony 保持同步。
+
+仓库脚本可在已有 SSH 别名和免密 sudo 的环境中重复执行：
+
+```bash
+./scripts/sync-vm-clocks.sh
+# 或仅修复指定节点
+./scripts/sync-vm-clocks.sh k3s-worker-1
+```
+
+脚本备份 `/etc/chrony/sources.d/ubuntu-ntp-pools.sources`，写入 `ride-sharing.sources` 与 `conf.d/99-utm-clock.conf`，
+启用并重启 chrony，配置 `makestep 1 -1` 以处理后续暂停/恢复造成的大幅偏差。
+使用 `chronyc -n sources` 查看 `^*` 已选授时源，使用 `timedatectl show -p NTPSynchronized` 验证同步。
+该配置不会回填旧订单的历史时间戳。

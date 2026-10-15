@@ -41,6 +41,7 @@ func main() {
 	})
 
 	registerTripRoutes(http.DefaultServeMux, tripClient)
+	registerDriverRoutes(http.DefaultServeMux, driverClient, tripClient)
 
 	log.Printf("Starting api gateway on port %s", HttpAddr)
 	log.Fatal(http.ListenAndServe(HttpAddr, nil))

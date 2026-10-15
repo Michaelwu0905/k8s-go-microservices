@@ -15,6 +15,12 @@ spec:
       containers:
         - name: driver-service
           image: europe-west1-docker.pkg.dev/{{PROJECT_ID}}/ride-sharing/driver-service
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: DATABASE_URL
           ports:
             - containerPort: 8082
             - containerPort: 9092

@@ -7,7 +7,12 @@ option go_package = "shared/proto/driver;driver";
 message Driver {
   string driver_id = 1;
   Location location = 2;
-   string geohash = 3; 
+  string geohash = 3;
+  bool online = 4;
+  string updated_at = 5;
+  string source = 6;
+  float accuracy = 7;
+  double distance_meters = 8;
 }
 
 message Location {
@@ -17,12 +22,30 @@ message Location {
 
 service DriverService {
   rpc FindNearbyDrivers(stream FindNearbyDriversRequest) returns (stream StreamDriversResponse);
+  rpc UpdateLocation(UpdateLocationRequest) returns (Driver);
+  rpc SetAvailability(SetAvailabilityRequest) returns (Driver);
+  rpc GetDriver(GetDriverRequest) returns (Driver);
 }
 
 message FindNearbyDriversRequest {
   Location location = 1;
+  string assigned_driver_id = 2;
 }
 
 message StreamDriversResponse {
   repeated Driver nearby_drivers = 1;
 }
+
+message UpdateLocationRequest {
+  string driver_id = 1;
+  Location location = 2;
+  string source = 3;
+  float accuracy = 4;
+}
+
+message SetAvailabilityRequest {
+  string driver_id = 1;
+  bool online = 2;
+}
+
+message GetDriverRequest { string driver_id = 1; }

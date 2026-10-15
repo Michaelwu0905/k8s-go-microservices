@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"time"
 
 	"google.golang.org/grpc"
 )
@@ -12,8 +15,29 @@ var GrpcAddr = ":9092"
 var HttpAddr = ":8082"
 
 func main() {
+	databaseURL := os.Getenv("DATABASE_URL")
+	if databaseURL == "" {
+		log.Fatal("DATABASE_URL is required")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	service, err := NewService(ctx, databaseURL)
+	cancel()
+	if err != nil {
+		log.Fatalf("Initialize driver database: %v", err)
+	}
+	defer service.pool.Close()
+
 	// Start HTTP server
 	go func() {
+		http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+			ctx, cancel := context.WithTimeout(r.Context(), time.Second)
+			defer cancel()
+			if err := service.pool.Ping(ctx); err != nil {
+				http.Error(w, "Database unavailable", http.StatusServiceUnavailable)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		})
 		http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Request from: %s to %s", r.RemoteAddr, r.URL.Path)
 			writeJSON(w, http.StatusOK, map[string]string{"message": "Hello, Driver Service!"})
@@ -30,7 +54,6 @@ func main() {
 
 	grpcServer := grpc.NewServer()
 
-	service := NewService()
 	NewGrpcHandler(grpcServer, service)
 
 	log.Printf("Starting gRPC server on port %s", lis.Addr().String())

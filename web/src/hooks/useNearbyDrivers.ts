@@ -1,55 +1,43 @@
+'use client';
 import { useEffect, useState } from 'react';
-import { WEBSOCKET_URL } from "@/constants";
+import { WEBSOCKET_URL } from '@/constants';
+import type { Driver, Location } from '@/types';
+export type { Driver } from '@/types';
 
-interface Location {
-  latitude: number;
-  longitude: number;
-}
-
-export interface Driver {
-  driver_id: string;
-  location: Location;
-  geohash: string;
-}
-
-export function useNearbyDrivers(location: Location) {
+export function useNearbyDrivers(location: Location, assignedDriverId = '') {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [error, setError] = useState<string | null>(null);
-
+  const { latitude, longitude } = location;
   useEffect(() => {
-    const ws = new WebSocket(`${WEBSOCKET_URL}/drivers`);
     let active = true;
-
-    ws.onopen = () => {
+    let socket: WebSocket;
+    let retry: ReturnType<typeof setTimeout>;
+    let attempts = 0;
+    const connect = () => {
       if (!active) return;
-      setError(null);
-      // Send initial location
-      ws.send(JSON.stringify(location));
+      socket = new WebSocket(`${WEBSOCKET_URL}/drivers`);
+      socket.onopen = () => {
+        if (!active) return;
+        socket.send(JSON.stringify({ latitude, longitude, assigned_driver_id: assignedDriverId }));
+      };
+      socket.onmessage = event => {
+        if (!active) return;
+        try {
+          setDrivers((JSON.parse(event.data) ?? []) as Driver[]);
+          setError(null);
+          attempts = 0;
+        } catch { setError('司机位置数据暂不可用'); }
+      };
+      socket.onerror = () => { if (active) setError('位置连接中断，正在重连'); };
+      socket.onclose = () => {
+        if (!active) return;
+        setError('位置连接中断，正在重连');
+        setDrivers(previous => previous.map(driver => ({ ...driver, online: false })));
+        retry = setTimeout(connect, Math.min(10000, 1000 * 2 ** attempts++));
+      };
     };
-
-    ws.onmessage = (event) => {
-      if (!active) return;
-      const drivers = JSON.parse(event.data) as Driver[];
-      setDrivers(drivers);
-    };
-
-    ws.onclose = () => {
-      console.log('WebSocket closed');
-    };
-
-    ws.onerror = (event) => {
-      if (!active) return;
-      setError('WebSocket error occurred');
-      console.error('WebSocket error:', event);
-    };
-
-    return () => {
-      active = false;
-      console.log('Closing WebSocket');
-      ws.close();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
+    connect();
+    return () => { active = false; clearTimeout(retry); socket?.close(); };
+  }, [latitude, longitude, assignedDriverId]);
   return { drivers, error };
 }

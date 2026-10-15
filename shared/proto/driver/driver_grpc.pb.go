@@ -20,6 +20,9 @@ const _ = grpc.SupportPackageIsVersion9
 
 const (
 	DriverService_FindNearbyDrivers_FullMethodName = "/driver.DriverService/FindNearbyDrivers"
+	DriverService_UpdateLocation_FullMethodName    = "/driver.DriverService/UpdateLocation"
+	DriverService_SetAvailability_FullMethodName   = "/driver.DriverService/SetAvailability"
+	DriverService_GetDriver_FullMethodName         = "/driver.DriverService/GetDriver"
 )
 
 // DriverServiceClient is the client API for DriverService service.
@@ -27,6 +30,9 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type DriverServiceClient interface {
 	FindNearbyDrivers(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[FindNearbyDriversRequest, StreamDriversResponse], error)
+	UpdateLocation(ctx context.Context, in *UpdateLocationRequest, opts ...grpc.CallOption) (*Driver, error)
+	SetAvailability(ctx context.Context, in *SetAvailabilityRequest, opts ...grpc.CallOption) (*Driver, error)
+	GetDriver(ctx context.Context, in *GetDriverRequest, opts ...grpc.CallOption) (*Driver, error)
 }
 
 type driverServiceClient struct {
@@ -50,11 +56,44 @@ func (c *driverServiceClient) FindNearbyDrivers(ctx context.Context, opts ...grp
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type DriverService_FindNearbyDriversClient = grpc.BidiStreamingClient[FindNearbyDriversRequest, StreamDriversResponse]
 
+func (c *driverServiceClient) UpdateLocation(ctx context.Context, in *UpdateLocationRequest, opts ...grpc.CallOption) (*Driver, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Driver)
+	err := c.cc.Invoke(ctx, DriverService_UpdateLocation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *driverServiceClient) SetAvailability(ctx context.Context, in *SetAvailabilityRequest, opts ...grpc.CallOption) (*Driver, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Driver)
+	err := c.cc.Invoke(ctx, DriverService_SetAvailability_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *driverServiceClient) GetDriver(ctx context.Context, in *GetDriverRequest, opts ...grpc.CallOption) (*Driver, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(Driver)
+	err := c.cc.Invoke(ctx, DriverService_GetDriver_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // DriverServiceServer is the server API for DriverService service.
 // All implementations must embed UnimplementedDriverServiceServer
 // for forward compatibility.
 type DriverServiceServer interface {
 	FindNearbyDrivers(grpc.BidiStreamingServer[FindNearbyDriversRequest, StreamDriversResponse]) error
+	UpdateLocation(context.Context, *UpdateLocationRequest) (*Driver, error)
+	SetAvailability(context.Context, *SetAvailabilityRequest) (*Driver, error)
+	GetDriver(context.Context, *GetDriverRequest) (*Driver, error)
 	mustEmbedUnimplementedDriverServiceServer()
 }
 
@@ -67,6 +106,15 @@ type UnimplementedDriverServiceServer struct{}
 
 func (UnimplementedDriverServiceServer) FindNearbyDrivers(grpc.BidiStreamingServer[FindNearbyDriversRequest, StreamDriversResponse]) error {
 	return status.Error(codes.Unimplemented, "method FindNearbyDrivers not implemented")
+}
+func (UnimplementedDriverServiceServer) UpdateLocation(context.Context, *UpdateLocationRequest) (*Driver, error) {
+	return nil, status.Error(codes.Unimplemented, "method UpdateLocation not implemented")
+}
+func (UnimplementedDriverServiceServer) SetAvailability(context.Context, *SetAvailabilityRequest) (*Driver, error) {
+	return nil, status.Error(codes.Unimplemented, "method SetAvailability not implemented")
+}
+func (UnimplementedDriverServiceServer) GetDriver(context.Context, *GetDriverRequest) (*Driver, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetDriver not implemented")
 }
 func (UnimplementedDriverServiceServer) mustEmbedUnimplementedDriverServiceServer() {}
 func (UnimplementedDriverServiceServer) testEmbeddedByValue()                       {}
@@ -96,13 +144,80 @@ func _DriverService_FindNearbyDrivers_Handler(srv interface{}, stream grpc.Serve
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type DriverService_FindNearbyDriversServer = grpc.BidiStreamingServer[FindNearbyDriversRequest, StreamDriversResponse]
 
+func _DriverService_UpdateLocation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateLocationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DriverServiceServer).UpdateLocation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DriverService_UpdateLocation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DriverServiceServer).UpdateLocation(ctx, req.(*UpdateLocationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DriverService_SetAvailability_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetAvailabilityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DriverServiceServer).SetAvailability(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DriverService_SetAvailability_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DriverServiceServer).SetAvailability(ctx, req.(*SetAvailabilityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _DriverService_GetDriver_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetDriverRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(DriverServiceServer).GetDriver(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: DriverService_GetDriver_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(DriverServiceServer).GetDriver(ctx, req.(*GetDriverRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // DriverService_ServiceDesc is the grpc.ServiceDesc for DriverService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var DriverService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "driver.DriverService",
 	HandlerType: (*DriverServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "UpdateLocation",
+			Handler:    _DriverService_UpdateLocation_Handler,
+		},
+		{
+			MethodName: "SetAvailability",
+			Handler:    _DriverService_SetAvailability_Handler,
+		},
+		{
+			MethodName: "GetDriver",
+			Handler:    _DriverService_GetDriver_Handler,
+		},
+	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "FindNearbyDrivers",

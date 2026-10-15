@@ -1,12 +1,17 @@
 'use client';
 
 import Link from 'next/link';
+import dynamic from 'next/dynamic';
+import { useDriverTracking } from '@/hooks/useDriverTracking';
+import { useNavigation } from '@/hooks/useNavigation';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTripFeed } from '@/hooks/useTripFeed';
 import { formatDistance, formatDuration, formatLocation, tripRequest } from '@/lib/trips';
 import { Trip, TripStatus, tripStatusLabels } from '@/types';
+
+const DriverMap = dynamic(() => import('@/components/DriverMap').then(module => module.DriverMap), { ssr: false });
 
 const nextStep: Partial<Record<TripStatus, { status: TripStatus; label: string }>> = {
   [TripStatus.Accepted]: { status: TripStatus.Arrived, label: '已到达上车点' },
@@ -27,10 +32,9 @@ function TripDetails({ trip }: { trip: Trip }) {
 
 export default function DriverPage() {
   const [driverId, setDriverId] = useState('');
-  const [online, setOnline] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { trips, connected, ready, updateTrip } = useTripFeed({ driverId: online ? driverId : '' });
+  const { trips, connected, ready, updateTrip } = useTripFeed({ driverId });
   useEffect(() => {
     const saved = localStorage.getItem('ride-sharing-driver');
     setDriverId(saved && /^driver-[0-3]$/.test(saved) ? saved : 'driver-0');
@@ -38,6 +42,14 @@ export default function DriverPage() {
   const active = trips.find(trip => trip.driver_id === driverId && trip.status >= TripStatus.Accepted && trip.status <= TripStatus.InTrip);
   const available = trips.filter(trip => trip.status === TripStatus.Pending);
   const history = trips.filter(trip => trip.driver_id === driverId && trip.status >= TripStatus.Completed);
+  const tracking = useDriverTracking(driverId);
+  const navigation = useNavigation(active, tracking.driver);
+  const { setPath } = tracking;
+  useEffect(() => {
+    setPath(active && [TripStatus.Accepted, TripStatus.InTrip].includes(active.status) ? navigation.path : []);
+  }, [active, navigation.path, setPath]);
+  const canAccept = tracking.mode !== 'idle' && !!tracking.driver?.online && !tracking.error;
+
 
   const perform = async (trip: Trip, status: TripStatus) => {
     if (busy) return;
@@ -63,7 +75,7 @@ export default function DriverPage() {
         <Card>
           <CardContent className="flex flex-wrap items-center gap-4 pt-6">
             <label className="flex items-center gap-2 text-sm">演示司机
-              <select aria-label="演示司机" value={driverId} disabled={!!active || busy || !ready && online} onChange={event => {
+              <select aria-label="演示司机" value={driverId} disabled={!!active || busy || !ready || tracking.mode !== 'idle'} onChange={event => {
                 setDriverId(event.target.value);
                 localStorage.setItem('ride-sharing-driver', event.target.value);
                 setError(null);
@@ -71,16 +83,32 @@ export default function DriverPage() {
                 {[0, 1, 2, 3].map(id => <option key={id} value={`driver-${id}`}>driver-{id}</option>)}
               </select>
             </label>
-            <Button variant="outline" disabled={!!active || busy || !driverId || !ready && online} onClick={() => setOnline(value => !value)}>{online ? '暂停接单' : '开始接单'}</Button>
-            <span role="status" className="text-sm text-muted-foreground">{!online ? '已暂停接收订单' : connected ? '实时连接正常' : '正在连接，自动恢复订单…'}</span>
+            <Button disabled={!driverId || tracking.mode === 'demo'} onClick={() => tracking.setMode('demo')}>演示行驶</Button>
+            <Button variant="outline" disabled={!driverId || tracking.mode === 'gps'} onClick={() => tracking.setMode('gps')}>使用设备定位</Button>
+            {tracking.mode !== 'idle' && <Button variant="outline" onClick={tracking.stop}>停止定位</Button>}
+            <span role="status" className="text-sm text-muted-foreground">{connected ? '订单实时连接正常' : '正在恢复订单…'}</span>
+
           </CardContent>
         </Card>
-        <p className="text-xs text-muted-foreground">演示模式：通过司机 ID 区分身份，尚未接入登录认证。当前车辆位置仍由预设路线模拟。</p>
+        <p className="text-xs text-muted-foreground">通过司机 ID 区分演示身份，尚未接入登录认证。设备定位使用真实位置；电脑体验可选择北京的演示行驶，车辆会沿接驾和行程路线前进。</p>
+        <Card>
+          <CardHeader><CardTitle className="text-lg">车辆位置 · {tracking.mode === 'gps' ? '设备定位' : tracking.mode === 'demo' ? '演示行驶' : '未开启定位'}</CardTitle>
+            <CardDescription>{tracking.loading ? '正在获取并上报位置…' : tracking.driver ? `${formatLocation(tracking.driver.location)} · ${tracking.driver.online ? '在线' : '离线或位置过期'}` : '开启定位后，附近乘客可在地图上看到您的车辆。'}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {tracking.error && <p role="alert" className="text-sm text-destructive">{tracking.error}</p>}
+            {tracking.driver?.source === 'gps' && <p className="text-xs text-muted-foreground">定位精度约 {Math.round(tracking.driver.accuracy ?? 0)} 米</p>}
+            <DriverMap driver={tracking.driver} trip={active} path={navigation.path} phase={navigation.navigation?.phase} />
+          </CardContent>
+        </Card>
         {error && <p role="alert" className="rounded-lg border border-destructive p-3 text-sm text-destructive">{error}</p>}
         {active && <Card>
           <CardHeader><CardTitle>当前行程 · {tripStatusLabels[active.status]}</CardTitle><CardDescription>请按实际进度推进，进行中的行程完成后才能接新订单。</CardDescription></CardHeader>
           <CardContent className="space-y-5">
             <TripDetails trip={active} />
+            {navigation.navigation && <p className="text-sm font-medium">{navigation.navigation.phase === 'pickup' ? '接驾剩余' : '距目的地'} {formatDistance(navigation.distance ?? 0)} · {formatDuration(navigation.duration ?? 0)}</p>}
+            {navigation.error && <p className="text-sm text-destructive">路线暂不可用：{navigation.error}</p>}
+            {tracking.mode === 'demo' && <p className="text-xs text-muted-foreground">演示车辆自动沿路线行驶，抵达后请手动确认行程状态。</p>}
             <div className="flex flex-wrap gap-3">
               {nextStep[active.status] && <Button disabled={busy || !connected} onClick={() => perform(active, nextStep[active.status]!.status)}>{busy ? '正在提交…' : nextStep[active.status]!.label}</Button>}
               {active.status < TripStatus.InTrip && <Button variant="outline" disabled={busy || !connected} onClick={() => perform(active, TripStatus.Cancelled)}>取消行程</Button>}
@@ -89,12 +117,12 @@ export default function DriverPage() {
         </Card>}
         <section className="space-y-4">
           <h2 className="text-xl font-semibold">待接订单 <span className="text-muted-foreground">{available.length}</span></h2>
-          {online && ready && available.length === 0 && <p className="rounded-xl border bg-background p-6 text-sm text-muted-foreground">暂无待接订单。在乘客端选择目的地并确认叫车，新订单会自动出现在这里。</p>}
-          {!online && <p className="text-sm text-muted-foreground">开始接单后会加载最新订单。</p>}
+          {ready && available.length === 0 && <p className="rounded-xl border bg-background p-6 text-sm text-muted-foreground">暂无待接订单。在乘客端选择目的地并确认叫车，新订单会自动出现在这里。</p>}
+          {!canAccept && <p className="text-sm text-muted-foreground">请先开启设备定位或演示行驶，再接受新订单。</p>}
           <div className="grid gap-4 md:grid-cols-2">
             {available.map(trip => <Card key={trip.trip_id}>
               <CardHeader><CardTitle className="text-base">新行程</CardTitle></CardHeader>
-              <CardContent className="space-y-4"><TripDetails trip={trip} /><Button className="w-full" disabled={busy || !!active || !connected} onClick={() => perform(trip, TripStatus.Accepted)}>{active ? '请先完成当前行程' : busy ? '正在提交…' : '接受订单'}</Button></CardContent>
+              <CardContent className="space-y-4"><TripDetails trip={trip} /><Button className="w-full" disabled={busy || !!active || !connected || !canAccept} onClick={() => perform(trip, TripStatus.Accepted)}>{active ? '请先完成当前行程' : !canAccept ? '先开启定位' : busy ? '正在提交…' : '接受订单'}</Button></CardContent>
             </Card>)}
           </div>
         </section>

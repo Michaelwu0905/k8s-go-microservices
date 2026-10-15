@@ -146,3 +146,29 @@ func (h *TripGrpcHandler) WatchTrips(req *pb.WatchTripsRequest, stream pb.TripSe
 		// Heartbeats reconcile state even after a temporarily interrupted connection.
 	}
 }
+
+func (h *TripGrpcHandler) GetNavigation(ctx context.Context, req *pb.GetNavigationRequest) (*pb.NavigationResponse, error) {
+	if !validIdentity(req.GetTripId()) || !validIdentity(req.GetDriverId()) || !validCoordinate(req.GetOrigin()) {
+		return nil, status.Error(codes.InvalidArgument, "trip_id, driver_id and a valid origin are required")
+	}
+	trip, err := h.store.Get(ctx, req.TripId)
+	if err != nil {
+		return nil, err
+	}
+	if trip.DriverId != req.DriverId {
+		return nil, status.Error(codes.PermissionDenied, "only the assigned driver has a navigation route")
+	}
+	target, phase := trip.Pickup, "pickup"
+	switch trip.Status {
+	case pb.TripStatus_TRIP_STATUS_ACCEPTED, pb.TripStatus_TRIP_STATUS_ARRIVED:
+	case pb.TripStatus_TRIP_STATUS_IN_TRIP:
+		target, phase = trip.Destination, "destination"
+	default:
+		return nil, status.Error(codes.FailedPrecondition, "navigation requires an active assigned trip")
+	}
+	route, err := h.router.Fetch(ctx, req.Origin, target)
+	if err != nil {
+		return nil, err
+	}
+	return &pb.NavigationResponse{TripId: trip.TripId, Phase: phase, Route: route}, nil
+}

@@ -11,6 +11,7 @@ service TripService {
   rpc ListTrips(ListTripsRequest) returns (ListTripsResponse);
   rpc UpdateTripStatus(UpdateTripStatusRequest) returns (GetTripResponse);
   rpc WatchTrips(WatchTripsRequest) returns (stream ListTripsResponse);
+  rpc GetNavigation(GetNavigationRequest) returns (NavigationResponse);
 }
 
 enum TripStatus {
@@ -105,4 +106,16 @@ message WatchTripsRequest {
   string trip_id = 1;
   string driver_id = 2;
   string rider_id = 3;
+}
+
+message GetNavigationRequest {
+  string trip_id = 1;
+  string driver_id = 2;
+  Coordinate origin = 3;
+}
+
+message NavigationResponse {
+  string trip_id = 1;
+  string phase = 2;
+  Route route = 3;
 }

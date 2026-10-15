@@ -922,6 +922,126 @@ func (x *WatchTripsRequest) GetRiderId() string {
 	return ""
 }
 
+type GetNavigationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TripId        string                 `protobuf:"bytes,1,opt,name=trip_id,json=tripId,proto3" json:"trip_id,omitempty"`
+	DriverId      string                 `protobuf:"bytes,2,opt,name=driver_id,json=driverId,proto3" json:"driver_id,omitempty"`
+	Origin        *Coordinate            `protobuf:"bytes,3,opt,name=origin,proto3" json:"origin,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetNavigationRequest) Reset() {
+	*x = GetNavigationRequest{}
+	mi := &file_trip_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetNavigationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetNavigationRequest) ProtoMessage() {}
+
+func (x *GetNavigationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_trip_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetNavigationRequest.ProtoReflect.Descriptor instead.
+func (*GetNavigationRequest) Descriptor() ([]byte, []int) {
+	return file_trip_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *GetNavigationRequest) GetTripId() string {
+	if x != nil {
+		return x.TripId
+	}
+	return ""
+}
+
+func (x *GetNavigationRequest) GetDriverId() string {
+	if x != nil {
+		return x.DriverId
+	}
+	return ""
+}
+
+func (x *GetNavigationRequest) GetOrigin() *Coordinate {
+	if x != nil {
+		return x.Origin
+	}
+	return nil
+}
+
+type NavigationResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	TripId        string                 `protobuf:"bytes,1,opt,name=trip_id,json=tripId,proto3" json:"trip_id,omitempty"`
+	Phase         string                 `protobuf:"bytes,2,opt,name=phase,proto3" json:"phase,omitempty"`
+	Route         *Route                 `protobuf:"bytes,3,opt,name=route,proto3" json:"route,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NavigationResponse) Reset() {
+	*x = NavigationResponse{}
+	mi := &file_trip_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NavigationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NavigationResponse) ProtoMessage() {}
+
+func (x *NavigationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_trip_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NavigationResponse.ProtoReflect.Descriptor instead.
+func (*NavigationResponse) Descriptor() ([]byte, []int) {
+	return file_trip_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *NavigationResponse) GetTripId() string {
+	if x != nil {
+		return x.TripId
+	}
+	return ""
+}
+
+func (x *NavigationResponse) GetPhase() string {
+	if x != nil {
+		return x.Phase
+	}
+	return ""
+}
+
+func (x *NavigationResponse) GetRoute() *Route {
+	if x != nil {
+		return x.Route
+	}
+	return nil
+}
+
 var File_trip_proto protoreflect.FileDescriptor
 
 const file_trip_proto_rawDesc = "" +
@@ -991,7 +1111,15 @@ const file_trip_proto_rawDesc = "" +
 	"\x11WatchTripsRequest\x12\x17\n" +
 	"\atrip_id\x18\x01 \x01(\tR\x06tripId\x12\x1b\n" +
 	"\tdriver_id\x18\x02 \x01(\tR\bdriverId\x12\x19\n" +
-	"\brider_id\x18\x03 \x01(\tR\ariderId*\xc4\x01\n" +
+	"\brider_id\x18\x03 \x01(\tR\ariderId\"v\n" +
+	"\x14GetNavigationRequest\x12\x17\n" +
+	"\atrip_id\x18\x01 \x01(\tR\x06tripId\x12\x1b\n" +
+	"\tdriver_id\x18\x02 \x01(\tR\bdriverId\x12(\n" +
+	"\x06origin\x18\x03 \x01(\v2\x10.trip.CoordinateR\x06origin\"f\n" +
+	"\x12NavigationResponse\x12\x17\n" +
+	"\atrip_id\x18\x01 \x01(\tR\x06tripId\x12\x14\n" +
+	"\x05phase\x18\x02 \x01(\tR\x05phase\x12!\n" +
+	"\x05route\x18\x03 \x01(\v2\v.trip.RouteR\x05route*\xc4\x01\n" +
 	"\n" +
 	"TripStatus\x12\x1b\n" +
 	"\x17TRIP_STATUS_UNSPECIFIED\x10\x00\x12\x17\n" +
@@ -1000,7 +1128,7 @@ const file_trip_proto_rawDesc = "" +
 	"\x13TRIP_STATUS_ARRIVED\x10\x03\x12\x17\n" +
 	"\x13TRIP_STATUS_IN_TRIP\x10\x04\x12\x19\n" +
 	"\x15TRIP_STATUS_COMPLETED\x10\x05\x12\x19\n" +
-	"\x15TRIP_STATUS_CANCELLED\x10\x062\x91\x03\n" +
+	"\x15TRIP_STATUS_CANCELLED\x10\x062\xd8\x03\n" +
 	"\vTripService\x12?\n" +
 	"\n" +
 	"CreateTrip\x12\x17.trip.CreateTripRequest\x1a\x18.trip.CreateTripResponse\x12?\n" +
@@ -1010,7 +1138,8 @@ const file_trip_proto_rawDesc = "" +
 	"\tListTrips\x12\x16.trip.ListTripsRequest\x1a\x17.trip.ListTripsResponse\x12H\n" +
 	"\x10UpdateTripStatus\x12\x1d.trip.UpdateTripStatusRequest\x1a\x15.trip.GetTripResponse\x12@\n" +
 	"\n" +
-	"WatchTrips\x12\x17.trip.WatchTripsRequest\x1a\x17.trip.ListTripsResponse0\x01B\x18Z\x16shared/proto/trip;tripb\x06proto3"
+	"WatchTrips\x12\x17.trip.WatchTripsRequest\x1a\x17.trip.ListTripsResponse0\x01\x12E\n" +
+	"\rGetNavigation\x12\x1a.trip.GetNavigationRequest\x1a\x18.trip.NavigationResponseB\x18Z\x16shared/proto/trip;tripb\x06proto3"
 
 var (
 	file_trip_proto_rawDescOnce sync.Once
@@ -1025,7 +1154,7 @@ func file_trip_proto_rawDescGZIP() []byte {
 }
 
 var file_trip_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_trip_proto_msgTypes = make([]protoimpl.MessageInfo, 14)
+var file_trip_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
 var file_trip_proto_goTypes = []any{
 	(TripStatus)(0),                 // 0: trip.TripStatus
 	(*CreateTripRequest)(nil),       // 1: trip.CreateTripRequest
@@ -1042,6 +1171,8 @@ var file_trip_proto_goTypes = []any{
 	(*ListTripsResponse)(nil),       // 12: trip.ListTripsResponse
 	(*UpdateTripStatusRequest)(nil), // 13: trip.UpdateTripStatusRequest
 	(*WatchTripsRequest)(nil),       // 14: trip.WatchTripsRequest
+	(*GetNavigationRequest)(nil),    // 15: trip.GetNavigationRequest
+	(*NavigationResponse)(nil),      // 16: trip.NavigationResponse
 }
 var file_trip_proto_depIdxs = []int32{
 	2,  // 0: trip.CreateTripRequest.start_location:type_name -> trip.Coordinate
@@ -1061,23 +1192,27 @@ var file_trip_proto_depIdxs = []int32{
 	2,  // 14: trip.Trip.destination:type_name -> trip.Coordinate
 	10, // 15: trip.ListTripsResponse.trips:type_name -> trip.Trip
 	0,  // 16: trip.UpdateTripStatusRequest.status:type_name -> trip.TripStatus
-	1,  // 17: trip.TripService.CreateTrip:input_type -> trip.CreateTripRequest
-	6,  // 18: trip.TripService.AcceptTrip:input_type -> trip.AcceptTripRequest
-	8,  // 19: trip.TripService.GetTrip:input_type -> trip.GetTripRequest
-	11, // 20: trip.TripService.ListTrips:input_type -> trip.ListTripsRequest
-	13, // 21: trip.TripService.UpdateTripStatus:input_type -> trip.UpdateTripStatusRequest
-	14, // 22: trip.TripService.WatchTrips:input_type -> trip.WatchTripsRequest
-	5,  // 23: trip.TripService.CreateTrip:output_type -> trip.CreateTripResponse
-	7,  // 24: trip.TripService.AcceptTrip:output_type -> trip.AcceptTripResponse
-	9,  // 25: trip.TripService.GetTrip:output_type -> trip.GetTripResponse
-	12, // 26: trip.TripService.ListTrips:output_type -> trip.ListTripsResponse
-	9,  // 27: trip.TripService.UpdateTripStatus:output_type -> trip.GetTripResponse
-	12, // 28: trip.TripService.WatchTrips:output_type -> trip.ListTripsResponse
-	23, // [23:29] is the sub-list for method output_type
-	17, // [17:23] is the sub-list for method input_type
-	17, // [17:17] is the sub-list for extension type_name
-	17, // [17:17] is the sub-list for extension extendee
-	0,  // [0:17] is the sub-list for field type_name
+	2,  // 17: trip.GetNavigationRequest.origin:type_name -> trip.Coordinate
+	4,  // 18: trip.NavigationResponse.route:type_name -> trip.Route
+	1,  // 19: trip.TripService.CreateTrip:input_type -> trip.CreateTripRequest
+	6,  // 20: trip.TripService.AcceptTrip:input_type -> trip.AcceptTripRequest
+	8,  // 21: trip.TripService.GetTrip:input_type -> trip.GetTripRequest
+	11, // 22: trip.TripService.ListTrips:input_type -> trip.ListTripsRequest
+	13, // 23: trip.TripService.UpdateTripStatus:input_type -> trip.UpdateTripStatusRequest
+	14, // 24: trip.TripService.WatchTrips:input_type -> trip.WatchTripsRequest
+	15, // 25: trip.TripService.GetNavigation:input_type -> trip.GetNavigationRequest
+	5,  // 26: trip.TripService.CreateTrip:output_type -> trip.CreateTripResponse
+	7,  // 27: trip.TripService.AcceptTrip:output_type -> trip.AcceptTripResponse
+	9,  // 28: trip.TripService.GetTrip:output_type -> trip.GetTripResponse
+	12, // 29: trip.TripService.ListTrips:output_type -> trip.ListTripsResponse
+	9,  // 30: trip.TripService.UpdateTripStatus:output_type -> trip.GetTripResponse
+	12, // 31: trip.TripService.WatchTrips:output_type -> trip.ListTripsResponse
+	16, // 32: trip.TripService.GetNavigation:output_type -> trip.NavigationResponse
+	26, // [26:33] is the sub-list for method output_type
+	19, // [19:26] is the sub-list for method input_type
+	19, // [19:19] is the sub-list for extension type_name
+	19, // [19:19] is the sub-list for extension extendee
+	0,  // [0:19] is the sub-list for field type_name
 }
 
 func init() { file_trip_proto_init() }
@@ -1091,7 +1226,7 @@ func file_trip_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_trip_proto_rawDesc), len(file_trip_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   14,
+			NumMessages:   16,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

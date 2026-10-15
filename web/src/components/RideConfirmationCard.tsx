@@ -4,10 +4,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { disableMapPropagation } from '@/lib/mapInteractions';
 import { formatDistance, formatDuration, formatLocation } from '@/lib/trips';
-import { Location, Trip, TripStatus, tripStatusLabels } from '@/types';
+import { Driver, Location, Navigation, Trip, TripStatus, tripStatusLabels } from '@/types';
 
 interface RideConfirmationCardProps {
   trip: Trip | null;
+  driver?: Driver;
+  navigation: Navigation | null;
+  remainingDistance: number | null;
+  remainingDuration: number | null;
+  navigationError: string | null;
   destination: Location | null;
   busy: boolean;
   error: string | null;
@@ -17,7 +22,7 @@ interface RideConfirmationCardProps {
   onReset: () => void;
 }
 
-export function RideConfirmationCard({ trip, destination, busy, error, canRequest, onRequest, onCancel, onReset }: RideConfirmationCardProps) {
+export function RideConfirmationCard({ trip, driver, navigation, remainingDistance, remainingDuration, navigationError, destination, busy, error, canRequest, onRequest, onCancel, onReset }: RideConfirmationCardProps) {
   const terminal = trip && [TripStatus.Completed, TripStatus.Cancelled].includes(trip.status);
   return (
     <Card ref={disableMapPropagation} className="absolute bottom-4 right-4 z-[1000] w-[calc(100%-2rem)] max-w-sm">
@@ -31,6 +36,11 @@ export function RideConfirmationCard({ trip, destination, busy, error, canReques
         {trip ? (
           <>
             <p className="text-sm">{trip.driver_id ? `服务司机：${trip.driver_id}` : '订单已发布，请在司机端接单。'}</p>
+            {trip.driver_id && trip.status <= TripStatus.InTrip && <>
+              <p className="text-xs text-muted-foreground">{driver?.online ? `${driver.source === 'gps' ? '设备定位' : '演示行驶'} · 位置实时更新` : '司机位置暂不可用，正在等待更新'}</p>
+              {navigation && driver?.online && <p className="text-sm font-medium">{navigation.phase === 'pickup' ? '接驾剩余' : '距目的地'} {formatDistance(remainingDistance ?? 0)} · {formatDuration(remainingDuration ?? 0)}</p>}
+              {navigationError && <p className="text-xs text-destructive">接驾/导航路线暂不可用，请稍后重试。</p>}
+            </>}
             {trip.status === TripStatus.Arrived && <p className="text-sm">司机已到上车点，请准备上车。</p>}
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div><p className="text-muted-foreground">行程距离</p><p>{formatDistance(trip.route.distance)}</p></div>

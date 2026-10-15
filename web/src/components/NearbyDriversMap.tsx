@@ -2,31 +2,20 @@
 
 import 'leaflet/dist/leaflet.css';
 import { useNearbyDrivers } from '@/hooks/useNearbyDrivers';
-import { MapContainer, Marker, Popup, Rectangle, TileLayer } from 'react-leaflet'
-import L from 'leaflet';
-import { decodeGeoHash } from '@/utils/geohash';
+import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet'
+import type L from 'leaflet';
+import { DriverMarker } from '@/components/DriverMarker';
+import { MapViewport } from '@/components/MapViewport';
+import { useNavigation } from '@/hooks/useNavigation';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRiderIdentity, useTripFeed } from '@/hooks/useTripFeed';
 import { disableMapPropagation } from '@/lib/mapInteractions';
 import { tripRequest } from '@/lib/trips';
-// Fix for default marker icon
-import icon from 'leaflet/dist/images/marker-icon.png'
-import iconShadow from 'leaflet/dist/images/marker-shadow.png'
 import { MapClickHandler } from './MapClickHandler';
 import { isActiveTrip, Trip, TripStatus } from "@/types";
 import { RoutingControl } from "@/components/RoutingControl";
 import { RideConfirmationCard } from "@/components/RideConfirmationCard";
-
-const DefaultIcon = L.icon({
-    iconUrl: icon.src,
-    shadowUrl: iconShadow.src,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-})
-
-L.Marker.prototype.options.icon = DefaultIcon
-
 
 export function NearbyDriversMap() {
     const riderId = useRiderIdentity();
@@ -39,7 +28,9 @@ export function NearbyDriversMap() {
     const trip = trips.find(item => item.trip_id === trackedId) ?? activeTrip ?? null;
     const route = trip?.route.geometry[0]?.coordinates.map(point => [point.latitude, point.longitude] as [number, number]) ?? [];
     const location = { latitude: 39.9087, longitude: 116.3975 };
-    const { drivers, error } = useNearbyDrivers(location);
+    const { drivers, error } = useNearbyDrivers(location, trip?.driver_id);
+    const assignedDriver = drivers.find(driver => driver.driver_id === trip?.driver_id);
+    const navigation = useNavigation(trip, assignedDriver);
 
     useEffect(() => {
         if (activeTrip) setTrackedId(activeTrip.trip_id);
@@ -80,27 +71,6 @@ export function NearbyDriversMap() {
         } finally { setBusy(false); }
     };
 
-    const userMarker = new L.Icon({
-        iconUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ed/Map_pin_icon.svg/176px-Map_pin_icon.svg.png",
-        iconSize: [40, 40], // Size of the marker
-        iconAnchor: [20, 40], // Anchor point
-    });
-
-    const driverMarker = new L.Icon({
-        iconUrl: "https://www.svgrepo.com/show/25407/car.svg",
-        iconSize: [30, 30],
-        iconAnchor: [15, 30],
-    });
-
-    // Function to create grid bounds from geohash
-    const getGeohashBounds = (geohash: string) => {
-        const { latitude: [minLat, maxLat], longitude: [minLng, maxLng] } = decodeGeoHash(geohash);
-        return [
-            [minLat, minLng],
-            [maxLat, maxLng],
-        ];
-    };
-
     return (
         <MapContainer
             center={[location.latitude, location.longitude]}
@@ -115,41 +85,15 @@ export function NearbyDriversMap() {
                 url={`https://t0.tianditu.gov.cn/cva_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cva&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${process.env.NEXT_PUBLIC_TIANDITU_KEY}`}
                 attribution="&copy; 天地图"
             />
-            <Marker position={[location.latitude, location.longitude]} icon={userMarker} />
+            <CircleMarker center={[location.latitude, location.longitude]} radius={8} bubblingMouseEvents={false} pathOptions={{ color: '#16a34a', fillOpacity: 1 }}><Popup>上车点</Popup></CircleMarker>
 
-            {/* Render geohash grid cells */}
-            {drivers.map((driver) => (
-                <Rectangle
-                    key={`grid-${driver.geohash}`}
-                    bounds={getGeohashBounds(driver.geohash) as L.LatLngBoundsExpression}
-                    pathOptions={{
-                        color: '#3388ff',
-                        weight: 1,
-                        fillOpacity: 0.1
-                    }}
-                >
-                    <Popup>Geohash: {driver.geohash}</Popup>
-                </Rectangle>
-            ))}
-
-            {/* Render driver markers */}
-            {drivers.map((driver) => (
-                <Marker
-                    key={driver.driver_id}
-                    position={[driver.location.latitude, driver.location.longitude]}
-                    icon={driverMarker}
-                >
-                    <Popup>
-                        Driver ID: {driver.driver_id}
-                        <br />
-                        Geohash: {driver.geohash}
-                    </Popup>
-                </Marker>
+            {drivers.filter(driver => driver.online || driver.driver_id === trip?.driver_id).map(driver => (
+                <DriverMarker key={driver.driver_id} driver={driver} />
             ))}
             {(trip?.destination || destination) && (
-                <Marker position={trip ? [trip.destination.latitude, trip.destination.longitude] : destination!} icon={userMarker}>
+                <CircleMarker center={trip ? [trip.destination.latitude, trip.destination.longitude] : destination!} radius={8} bubblingMouseEvents={false} pathOptions={{ color: '#2563eb', fillOpacity: 1 }}>
                     <Popup>目的地</Popup>
-                </Marker>
+                </CircleMarker>
             )}
             <div ref={disableMapPropagation} className="absolute right-4 top-4 z-[1000] max-w-[calc(100%-5rem)] rounded-xl border bg-background p-3 shadow">
                 <div className="flex items-center gap-4 text-sm">
@@ -160,6 +104,11 @@ export function NearbyDriversMap() {
             </div>
             <RideConfirmationCard
                 trip={trip}
+                driver={assignedDriver}
+                navigation={navigation.navigation}
+                remainingDistance={navigation.distance}
+                remainingDuration={navigation.duration}
+                navigationError={navigation.error}
                 destination={destination ? { latitude: destination[0], longitude: destination[1] } : null}
                 busy={busy}
                 error={requestError}
@@ -170,7 +119,10 @@ export function NearbyDriversMap() {
             />
             <RoutingControl
                 route={route}
+                navigation={navigation.path}
+                phase={navigation.navigation?.phase}
             />
+            {trip?.driver_id && <MapViewport path={navigation.path} focus={assignedDriver?.location} fitKey={`${trip.trip_id}:${navigation.navigation?.phase}`} />}
             <MapClickHandler onClick={handleMapClick} />
         </MapContainer>
     )

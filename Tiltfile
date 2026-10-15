@@ -66,7 +66,7 @@ docker_build_with_restart(
 )
 
 k8s_yaml('./infra/development/k8s/driver-service-deployment.yaml')
-k8s_resource('driver-service', resource_deps=['driver-service-compile'])
+k8s_resource('driver-service', resource_deps=['driver-service-compile', 'postgres'])
 
 ### End of Driver Service ###
 

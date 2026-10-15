@@ -25,6 +25,7 @@ const (
 	TripService_ListTrips_FullMethodName        = "/trip.TripService/ListTrips"
 	TripService_UpdateTripStatus_FullMethodName = "/trip.TripService/UpdateTripStatus"
 	TripService_WatchTrips_FullMethodName       = "/trip.TripService/WatchTrips"
+	TripService_GetNavigation_FullMethodName    = "/trip.TripService/GetNavigation"
 )
 
 // TripServiceClient is the client API for TripService service.
@@ -37,6 +38,7 @@ type TripServiceClient interface {
 	ListTrips(ctx context.Context, in *ListTripsRequest, opts ...grpc.CallOption) (*ListTripsResponse, error)
 	UpdateTripStatus(ctx context.Context, in *UpdateTripStatusRequest, opts ...grpc.CallOption) (*GetTripResponse, error)
 	WatchTrips(ctx context.Context, in *WatchTripsRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[ListTripsResponse], error)
+	GetNavigation(ctx context.Context, in *GetNavigationRequest, opts ...grpc.CallOption) (*NavigationResponse, error)
 }
 
 type tripServiceClient struct {
@@ -116,6 +118,16 @@ func (c *tripServiceClient) WatchTrips(ctx context.Context, in *WatchTripsReques
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type TripService_WatchTripsClient = grpc.ServerStreamingClient[ListTripsResponse]
 
+func (c *tripServiceClient) GetNavigation(ctx context.Context, in *GetNavigationRequest, opts ...grpc.CallOption) (*NavigationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(NavigationResponse)
+	err := c.cc.Invoke(ctx, TripService_GetNavigation_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TripServiceServer is the server API for TripService service.
 // All implementations must embed UnimplementedTripServiceServer
 // for forward compatibility.
@@ -126,6 +138,7 @@ type TripServiceServer interface {
 	ListTrips(context.Context, *ListTripsRequest) (*ListTripsResponse, error)
 	UpdateTripStatus(context.Context, *UpdateTripStatusRequest) (*GetTripResponse, error)
 	WatchTrips(*WatchTripsRequest, grpc.ServerStreamingServer[ListTripsResponse]) error
+	GetNavigation(context.Context, *GetNavigationRequest) (*NavigationResponse, error)
 	mustEmbedUnimplementedTripServiceServer()
 }
 
@@ -153,6 +166,9 @@ func (UnimplementedTripServiceServer) UpdateTripStatus(context.Context, *UpdateT
 }
 func (UnimplementedTripServiceServer) WatchTrips(*WatchTripsRequest, grpc.ServerStreamingServer[ListTripsResponse]) error {
 	return status.Error(codes.Unimplemented, "method WatchTrips not implemented")
+}
+func (UnimplementedTripServiceServer) GetNavigation(context.Context, *GetNavigationRequest) (*NavigationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetNavigation not implemented")
 }
 func (UnimplementedTripServiceServer) mustEmbedUnimplementedTripServiceServer() {}
 func (UnimplementedTripServiceServer) testEmbeddedByValue()                     {}
@@ -276,6 +292,24 @@ func _TripService_WatchTrips_Handler(srv interface{}, stream grpc.ServerStream) 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type TripService_WatchTripsServer = grpc.ServerStreamingServer[ListTripsResponse]
 
+func _TripService_GetNavigation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetNavigationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TripServiceServer).GetNavigation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TripService_GetNavigation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TripServiceServer).GetNavigation(ctx, req.(*GetNavigationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TripService_ServiceDesc is the grpc.ServiceDesc for TripService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -302,6 +336,10 @@ var TripService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateTripStatus",
 			Handler:    _TripService_UpdateTripStatus_Handler,
+		},
+		{
+			MethodName: "GetNavigation",
+			Handler:    _TripService_GetNavigation_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
