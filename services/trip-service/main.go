@@ -7,6 +7,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/sikozonpc/ride-sharing/shared/rpcsecurity"
 	"google.golang.org/grpc"
 )
 
@@ -30,7 +31,11 @@ func main() {
 		log.Fatalf("Failed to listen: %v", err)
 	}
 
-	grpcServer := grpc.NewServer()
+	options, err := rpcsecurity.ServerOptions()
+	if err != nil {
+		log.Fatal(err)
+	}
+	grpcServer := grpc.NewServer(options...)
 
 	NewGrpcHandler(grpcServer, store)
 

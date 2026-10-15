@@ -68,7 +68,7 @@ export function useDriverTracking(driverId: string) {
     const tick = async () => {
       if (!active) return;
       if (mode === 'demo') {
-        const point = location.current ?? startingPoints[Number(driverId.split('-')[1]) % startingPoints.length] ?? startingPoints[0];
+        const point = location.current ?? startingPoints[Array.from(driverId).reduce((sum, char) => sum + char.charCodeAt(0), 0) % startingPoints.length] ?? startingPoints[0];
         await report(path.current.length > 1 ? advanceAlongRoute(point, path.current, 25) : point);
       } else if (fix && Date.now() - fix.timestamp < 20000) {
         await report(fix.location, fix.accuracy);
@@ -105,7 +105,7 @@ export function useDriverTracking(driverId: string) {
     setDriver(previous => previous ? { ...previous, online: false } : null);
   }, []);
   const startMode = useCallback((next: Mode) => {
-    const start = startingPoints[Number(driverId.split('-')[1]) % startingPoints.length] ?? startingPoints[0];
+    const start = startingPoints[Array.from(driverId).reduce((sum, char) => sum + char.charCodeAt(0), 0) % startingPoints.length] ?? startingPoints[0];
     if (next === 'demo' && location.current && distanceMeters(location.current, start) > 30000) {
       location.current = start;
       path.current = [];

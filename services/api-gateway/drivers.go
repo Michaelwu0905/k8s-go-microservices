@@ -26,6 +26,26 @@ func registerDriverRoutes(mux *http.ServeMux, drivers *driver_client.DriverServi
 		}))
 	}
 	register("/drivers/{id}", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
+		user := currentUser(r)
+		if user == nil {
+			authError(w, 401, "请先登录")
+			return
+		}
+		if user.Role == "driver" {
+			if !driverOwnsPath(w, r) {
+				return
+			}
+		} else {
+			assigned, err := assignedDriver(r, trips)
+			if err != nil {
+				writeTripError(w, err)
+				return
+			}
+			if assigned == "" || assigned != r.PathValue("id") {
+				authError(w, 403, "只能查看当前订单的服务司机")
+				return
+			}
+		}
 		driver, err := drivers.Client.GetDriver(r.Context(), &driverpb.GetDriverRequest{DriverId: r.PathValue("id")})
 		if err != nil {
 			writeTripError(w, err)
@@ -34,6 +54,9 @@ func registerDriverRoutes(mux *http.ServeMux, drivers *driver_client.DriverServi
 		_ = writeJSON(w, http.StatusOK, driver)
 	})
 	register("/drivers/{id}/availability", http.MethodPut, func(w http.ResponseWriter, r *http.Request) {
+		if !driverOwnsPath(w, r) {
+			return
+		}
 		var body struct {
 			Online *bool `json:"online"`
 		}
@@ -52,6 +75,9 @@ func registerDriverRoutes(mux *http.ServeMux, drivers *driver_client.DriverServi
 		_ = writeJSON(w, http.StatusOK, driver)
 	})
 	register("/drivers/{id}/location", http.MethodPut, func(w http.ResponseWriter, r *http.Request) {
+		if !driverOwnsPath(w, r) {
+			return
+		}
 		var body struct {
 			Location *driverpb.Location `json:"location"`
 			Source   string             `json:"source"`
@@ -71,6 +97,9 @@ func registerDriverRoutes(mux *http.ServeMux, drivers *driver_client.DriverServi
 		trip, err := trips.GetTrip(r.Context(), &trippb.GetTripRequest{TripId: r.PathValue("id")})
 		if err != nil {
 			writeTripError(w, err)
+			return
+		}
+		if !authorizeTrip(w, r, trip.Trip) {
 			return
 		}
 		if trip.Trip.DriverId == "" {

@@ -17,6 +17,11 @@ spec:
         - name: driver-service
           image: ride-sharing/driver-service
           env:
+            - name: INTERNAL_RPC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: internal-service-auth
+                  key: INTERNAL_RPC_KEY
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

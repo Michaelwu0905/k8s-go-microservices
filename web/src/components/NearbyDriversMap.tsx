@@ -8,8 +8,9 @@ import { DriverMarker } from '@/components/DriverMarker';
 import { MapViewport } from '@/components/MapViewport';
 import { useNavigation } from '@/hooks/useNavigation';
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useRiderIdentity, useTripFeed } from '@/hooks/useTripFeed';
+import { useAuth } from '@/components/AuthProvider';
+import { AccountMenu } from '@/components/AccountMenu';
+import { useTripFeed } from '@/hooks/useTripFeed';
 import { disableMapPropagation } from '@/lib/mapInteractions';
 import { tripRequest } from '@/lib/trips';
 import { MapClickHandler } from './MapClickHandler';
@@ -18,7 +19,8 @@ import { RoutingControl } from "@/components/RoutingControl";
 import { RideConfirmationCard } from "@/components/RideConfirmationCard";
 
 export function NearbyDriversMap() {
-    const riderId = useRiderIdentity();
+    const { user } = useAuth();
+    const riderId = user?.id ?? '';
     const { trips, connected, ready, updateTrip } = useTripFeed({ riderId });
     const [trackedId, setTrackedId] = useState('');
     const [destination, setDestination] = useState<[number, number] | null>(null);
@@ -28,7 +30,7 @@ export function NearbyDriversMap() {
     const trip = trips.find(item => item.trip_id === trackedId) ?? activeTrip ?? null;
     const route = trip?.route.geometry[0]?.coordinates.map(point => [point.latitude, point.longitude] as [number, number]) ?? [];
     const location = { latitude: 39.9087, longitude: 116.3975 };
-    const { drivers, error } = useNearbyDrivers(location, trip?.driver_id);
+    const { drivers, error } = useNearbyDrivers(location, trip && isActiveTrip(trip) ? trip.driver_id : undefined);
     const assignedDriver = drivers.find(driver => driver.driver_id === trip?.driver_id);
     const navigation = useNavigation(trip, assignedDriver);
 
@@ -48,7 +50,7 @@ export function NearbyDriversMap() {
         setRequestError(null);
         try {
             const created = await tripRequest<Trip>('/trip', 'POST', {
-                rider_id: riderId, pickup: location,
+                pickup: location,
                 destination: { latitude: destination[0], longitude: destination[1] },
             });
             setTrackedId(created.trip_id);
@@ -64,7 +66,7 @@ export function NearbyDriversMap() {
         setRequestError(null);
         try {
             updateTrip(await tripRequest<Trip>(`/trip/${trip.trip_id}/status`, 'PATCH', {
-                rider_id: riderId, status: TripStatus.Cancelled,
+                status: TripStatus.Cancelled,
             }));
         } catch (error) {
             setRequestError(error instanceof Error ? error.message : '取消订单失败');
@@ -98,7 +100,7 @@ export function NearbyDriversMap() {
             <div ref={disableMapPropagation} className="absolute right-4 top-4 z-[1000] max-w-[calc(100%-5rem)] rounded-xl border bg-background p-3 shadow">
                 <div className="flex items-center gap-4 text-sm">
                     <span>{connected ? '订单实时同步中' : ready ? '连接中断，正在重连…' : '正在恢复订单…'}</span>
-                    <Link href="/driver" className="font-medium underline">司机端</Link>
+                    <AccountMenu />
                 </div>
                 {error && <p className="mt-1 text-xs text-muted-foreground">司机位置暂不可用，订单仍可操作。</p>}
             </div>

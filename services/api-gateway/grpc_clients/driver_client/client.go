@@ -5,6 +5,7 @@ import (
 	"os"
 
 	pb "github.com/sikozonpc/ride-sharing/shared/proto/driver"
+	"github.com/sikozonpc/ride-sharing/shared/rpcsecurity"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -20,7 +21,12 @@ func NewDriverServiceClient() (*DriverServiceClient, error) {
 		driverServiceURL = "driver-service:9092"
 	}
 
-	conn, err := grpc.NewClient(driverServiceURL, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	options, err := rpcsecurity.ClientOptions()
+	if err != nil {
+		return nil, err
+	}
+	options = append(options, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(driverServiceURL, options...)
 	if err != nil {
 		return nil, err
 	}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { API_URL } from '@/constants';
+import { checkSession } from '@/lib/session';
 import { Trip } from '@/types';
 
 // EventSource reconnects automatically. Each connection starts with a DB snapshot.
@@ -15,8 +16,7 @@ export function useTripFeed(filter: { riderId?: string; driverId?: string }) {
     setReady(false);
     setConnected(false);
     if (!riderId && !driverId) return;
-    const params = new URLSearchParams(riderId ? { rider_id: riderId } : { driver_id: driverId! });
-    const events = new EventSource(`${API_URL}/events/trips?${params}`);
+    const events = new EventSource(`${API_URL}/events/trips`, { withCredentials: true });
     events.onmessage = (event) => {
       try {
         const snapshot = JSON.parse(event.data) as { trips: Trip[] };
@@ -30,7 +30,7 @@ export function useTripFeed(filter: { riderId?: string; driverId?: string }) {
         setConnected(false);
       }
     };
-    events.onerror = () => setConnected(false);
+    events.onerror = () => { setConnected(false); void checkSession(); };
     return () => events.close();
   }, [riderId, driverId]);
 
@@ -38,17 +38,4 @@ export function useTripFeed(filter: { riderId?: string; driverId?: string }) {
     setTrips(previous => [trip, ...previous.filter(item => item.trip_id !== trip.trip_id)]);
   }, []);
   return { trips, connected, ready, updateTrip };
-}
-
-export function useRiderIdentity() {
-  const [riderId, setRiderId] = useState('');
-  useEffect(() => {
-    let id = localStorage.getItem('ride-sharing-rider');
-    if (!id || !/^[a-zA-Z0-9_-]{1,64}$/.test(id)) {
-      id = `rider-${crypto.randomUUID()}`;
-      localStorage.setItem('ride-sharing-rider', id);
-    }
-    setRiderId(id);
-  }, []);
-  return riderId;
 }

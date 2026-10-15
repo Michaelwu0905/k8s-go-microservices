@@ -1,14 +1,18 @@
 import { API_URL } from '@/constants';
+import { getCSRFToken, sessionExpired } from '@/lib/session';
 import { Location } from '@/types';
 
 export async function tripRequest<T>(path: string, method = 'GET', body?: unknown, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    credentials: 'include',
+    cache: 'no-store',
+    headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(method !== 'GET' ? { 'X-CSRF-Token': getCSRFToken() } : {}) },
     body: body ? JSON.stringify(body) : undefined,
     signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20000)]) : AbortSignal.timeout(20000),
   });
   const result = await response.json();
+  if (response.status === 401 && !['/auth/login', '/auth/register'].includes(path)) sessionExpired();
   if (!response.ok) throw new Error(result.error || `请求失败（${response.status}）`);
   return result as T;
 }

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { WEBSOCKET_URL } from '@/constants';
+import { checkSession } from '@/lib/session';
 import type { Driver, Location } from '@/types';
 export type { Driver } from '@/types';
 
@@ -32,6 +33,7 @@ export function useNearbyDrivers(location: Location, assignedDriverId = '') {
       socket.onclose = () => {
         if (!active) return;
         setError('位置连接中断，正在重连');
+        void checkSession();
         setDrivers(previous => previous.map(driver => ({ ...driver, online: false })));
         retry = setTimeout(connect, Math.min(10000, 1000 * 2 ** attempts++));
       };

@@ -16,6 +16,11 @@ spec:
         - name: trip-service
           image: europe-west1-docker.pkg.dev/{{PROJECT_ID}}/ride-sharing/trip-service
           env:
+            - name: INTERNAL_RPC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: internal-service-auth
+                  key: INTERNAL_RPC_KEY
             - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:

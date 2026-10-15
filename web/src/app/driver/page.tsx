@@ -1,6 +1,7 @@
 'use client';
 
-import Link from 'next/link';
+import { RequireAuth, useAuth } from '@/components/AuthProvider';
+import { AccountMenu } from '@/components/AccountMenu';
 import dynamic from 'next/dynamic';
 import { useDriverTracking } from '@/hooks/useDriverTracking';
 import { useNavigation } from '@/hooks/useNavigation';
@@ -31,14 +32,15 @@ function TripDetails({ trip }: { trip: Trip }) {
 }
 
 export default function DriverPage() {
-  const [driverId, setDriverId] = useState('');
+  return <RequireAuth role="driver"><DriverDashboard /></RequireAuth>;
+}
+function DriverDashboard() {
+  const { user } = useAuth();
+  const driverId = user?.id ?? '';
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { trips, connected, ready, updateTrip } = useTripFeed({ driverId });
-  useEffect(() => {
-    const saved = localStorage.getItem('ride-sharing-driver');
-    setDriverId(saved && /^driver-[0-3]$/.test(saved) ? saved : 'driver-0');
-  }, []);
+
   const active = trips.find(trip => trip.driver_id === driverId && trip.status >= TripStatus.Accepted && trip.status <= TripStatus.InTrip);
   const available = trips.filter(trip => trip.status === TripStatus.Pending);
   const history = trips.filter(trip => trip.driver_id === driverId && trip.status >= TripStatus.Completed);
@@ -57,8 +59,8 @@ export default function DriverPage() {
     setError(null);
     try {
       const result = status === TripStatus.Accepted
-        ? await tripRequest<Trip>('/trip/accept', 'POST', { trip_id: trip.trip_id, driver_id: driverId })
-        : await tripRequest<Trip>(`/trip/${trip.trip_id}/status`, 'PATCH', { driver_id: driverId, status });
+        ? await tripRequest<Trip>('/trip/accept', 'POST', { trip_id: trip.trip_id })
+        : await tripRequest<Trip>(`/trip/${trip.trip_id}/status`, 'PATCH', { status });
       updateTrip(result);
     } catch (error) {
       setError(error instanceof Error ? error.message : '操作失败，请重试');
@@ -70,19 +72,11 @@ export default function DriverPage() {
       <div className="mx-auto max-w-5xl space-y-6">
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div><p className="mb-2 text-sm text-muted-foreground">RIDE SHARING</p><h1 className="text-3xl font-semibold">司机工作台</h1><p className="mt-2 text-sm text-muted-foreground">接单、接驾与行程状态会实时同步给乘客。</p></div>
-          <Link href="/" className="text-sm underline">返回乘客端</Link>
+          <AccountMenu />
         </header>
         <Card>
           <CardContent className="flex flex-wrap items-center gap-4 pt-6">
-            <label className="flex items-center gap-2 text-sm">演示司机
-              <select aria-label="演示司机" value={driverId} disabled={!!active || busy || !ready || tracking.mode !== 'idle'} onChange={event => {
-                setDriverId(event.target.value);
-                localStorage.setItem('ride-sharing-driver', event.target.value);
-                setError(null);
-              }} className="rounded-md border bg-background px-3 py-2">
-                {[0, 1, 2, 3].map(id => <option key={id} value={`driver-${id}`}>driver-{id}</option>)}
-              </select>
-            </label>
+            <span className="text-sm font-medium">{user?.display_name} · 司机</span>
             <Button disabled={!driverId || tracking.mode === 'demo'} onClick={() => tracking.setMode('demo')}>演示行驶</Button>
             <Button variant="outline" disabled={!driverId || tracking.mode === 'gps'} onClick={() => tracking.setMode('gps')}>使用设备定位</Button>
             {tracking.mode !== 'idle' && <Button variant="outline" onClick={tracking.stop}>停止定位</Button>}
@@ -90,7 +84,7 @@ export default function DriverPage() {
 
           </CardContent>
         </Card>
-        <p className="text-xs text-muted-foreground">通过司机 ID 区分演示身份，尚未接入登录认证。设备定位使用真实位置；电脑体验可选择北京的演示行驶，车辆会沿接驾和行程路线前进。</p>
+        <p className="text-xs text-muted-foreground">您只能操作当前账号的车辆与订单。设备定位使用真实位置；演示行驶会沿接驾和行程路线前进。</p>
         <Card>
           <CardHeader><CardTitle className="text-lg">车辆位置 · {tracking.mode === 'gps' ? '设备定位' : tracking.mode === 'demo' ? '演示行驶' : '未开启定位'}</CardTitle>
             <CardDescription>{tracking.loading ? '正在获取并上报位置…' : tracking.driver ? `${formatLocation(tracking.driver.location)} · ${tracking.driver.online ? '在线' : '离线或位置过期'}` : '开启定位后，附近乘客可在地图上看到您的车辆。'}</CardDescription>

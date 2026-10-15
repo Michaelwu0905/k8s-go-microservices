@@ -16,6 +16,8 @@ import (
 func writeTripError(w http.ResponseWriter, err error) {
 	code := http.StatusInternalServerError
 	switch status.Code(err) {
+	case codes.Unauthenticated:
+		code = http.StatusUnauthorized
 	case codes.InvalidArgument:
 		code = http.StatusBadRequest
 	case codes.NotFound:
@@ -61,6 +63,9 @@ func registerTripRoutes(mux *http.ServeMux, client *trip_client.TripServiceClien
 		}))
 	}
 	register("/trip", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+		if !requireRole(w, r, "rider") {
+			return
+		}
 		var body struct {
 			Pickup      *pb.Coordinate `json:"pickup"`
 			Destination *pb.Coordinate `json:"destination"`
@@ -69,7 +74,10 @@ func registerTripRoutes(mux *http.ServeMux, client *trip_client.TripServiceClien
 		if !decodeTripBody(w, r, &body) {
 			return
 		}
-		resp, err := client.CreateTrip(r.Context(), &pb.CreateTripRequest{StartLocation: body.Pickup, EndLocation: body.Destination, RiderId: body.RiderID})
+		if !claimsMatch(w, r, body.RiderID, "") {
+			return
+		}
+		resp, err := client.CreateTrip(r.Context(), &pb.CreateTripRequest{StartLocation: body.Pickup, EndLocation: body.Destination, RiderId: currentUser(r).ID})
 		if err != nil {
 			writeTripError(w, err)
 			return
@@ -77,6 +85,9 @@ func registerTripRoutes(mux *http.ServeMux, client *trip_client.TripServiceClien
 		_ = writeJSON(w, http.StatusCreated, resp.Trip)
 	})
 	register("/trip/accept", http.MethodPost, func(w http.ResponseWriter, r *http.Request) {
+		if !requireRole(w, r, "driver") {
+			return
+		}
 		var body struct {
 			TripID   string `json:"trip_id"`
 			DriverID string `json:"driver_id"`
@@ -84,7 +95,10 @@ func registerTripRoutes(mux *http.ServeMux, client *trip_client.TripServiceClien
 		if !decodeTripBody(w, r, &body) {
 			return
 		}
-		resp, err := client.AcceptTrip(r.Context(), &pb.AcceptTripRequest{TripId: body.TripID, DriverId: body.DriverID})
+		if !claimsMatch(w, r, "", body.DriverID) {
+			return
+		}
+		resp, err := client.AcceptTrip(r.Context(), &pb.AcceptTripRequest{TripId: body.TripID, DriverId: currentUser(r).ID})
 		if err != nil {
 			writeTripError(w, err)
 			return
@@ -97,14 +111,22 @@ func registerTripRoutes(mux *http.ServeMux, client *trip_client.TripServiceClien
 			writeTripError(w, err)
 			return
 		}
+		if !authorizeTrip(w, r, resp.Trip) {
+			return
+		}
 		_ = writeJSON(w, http.StatusOK, resp.Trip)
 	})
 	register("/trips", http.MethodGet, func(w http.ResponseWriter, r *http.Request) {
-		resp, err := client.Client.ListTrips(r.Context(), &pb.ListTripsRequest{DriverId: r.URL.Query().Get("driver_id"), RiderId: r.URL.Query().Get("rider_id")})
+		filter, ok := ownListFilter(w, r)
+		if !ok {
+			return
+		}
+		resp, err := client.Client.ListTrips(r.Context(), filter)
 		if err != nil {
 			writeTripError(w, err)
 			return
 		}
+		resp.Trips = sanitizeTrips(currentUser(r), resp.Trips)
 		writeTripList(w, resp)
 	})
 	register("/trip/{id}/status", http.MethodPatch, func(w http.ResponseWriter, r *http.Request) {
@@ -116,7 +138,17 @@ func registerTripRoutes(mux *http.ServeMux, client *trip_client.TripServiceClien
 		if !decodeTripBody(w, r, &body) {
 			return
 		}
-		resp, err := client.Client.UpdateTripStatus(r.Context(), &pb.UpdateTripStatusRequest{TripId: r.PathValue("id"), Status: body.Status, DriverId: body.DriverID, RiderId: body.RiderID})
+		if !claimsMatch(w, r, body.RiderID, body.DriverID) {
+			return
+		}
+		user := currentUser(r)
+		update := &pb.UpdateTripStatusRequest{TripId: r.PathValue("id"), Status: body.Status}
+		if user.Role == "rider" {
+			update.RiderId = user.ID
+		} else {
+			update.DriverId = user.ID
+		}
+		resp, err := client.Client.UpdateTripStatus(r.Context(), update)
 		if err != nil {
 			writeTripError(w, err)
 			return
@@ -133,9 +165,23 @@ func registerTripRoutes(mux *http.ServeMux, client *trip_client.TripServiceClien
 			http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
 			return
 		}
-		stream, err := client.Client.WatchTrips(r.Context(), &pb.WatchTripsRequest{
-			TripId: r.URL.Query().Get("trip_id"), DriverId: r.URL.Query().Get("driver_id"), RiderId: r.URL.Query().Get("rider_id"),
-		})
+		filter, ok := ownListFilter(w, r)
+		if !ok {
+			return
+		}
+		request := &pb.WatchTripsRequest{RiderId: filter.RiderId, DriverId: filter.DriverId}
+		if tripID := r.URL.Query().Get("trip_id"); tripID != "" {
+			trip, err := client.GetTrip(r.Context(), &pb.GetTripRequest{TripId: tripID})
+			if err != nil {
+				writeTripError(w, err)
+				return
+			}
+			if !authorizeTrip(w, r, trip.Trip) {
+				return
+			}
+			request = &pb.WatchTripsRequest{TripId: tripID}
+		}
+		stream, err := client.Client.WatchTrips(r.Context(), request)
 		if err != nil {
 			writeTripError(w, err)
 			return
@@ -149,9 +195,7 @@ func registerTripRoutes(mux *http.ServeMux, client *trip_client.TripServiceClien
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("X-Accel-Buffering", "no")
 		for {
-			if event.Trips == nil {
-				event.Trips = []*pb.Trip{}
-			}
+			event.Trips = sanitizeTrips(currentUser(r), event.Trips)
 			payload, err := json.Marshal(map[string]any{"trips": event.Trips})
 			if err != nil {
 				return

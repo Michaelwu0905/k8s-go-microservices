@@ -35,7 +35,7 @@ export function RideConfirmationCard({ trip, driver, navigation, remainingDistan
       <CardContent className="space-y-4">
         {trip ? (
           <>
-            <p className="text-sm">{trip.driver_id ? `服务司机：${trip.driver_id}` : '订单已发布，请在司机端接单。'}</p>
+            <p className="break-all text-sm">{trip.driver_id ? `服务司机：${trip.driver_id}` : '订单已发布，请在司机端接单。'}</p>
             {trip.driver_id && trip.status <= TripStatus.InTrip && <>
               <p className="text-xs text-muted-foreground">{driver?.online ? `${driver.source === 'gps' ? '设备定位' : '演示行驶'} · 位置实时更新` : '司机位置暂不可用，正在等待更新'}</p>
               {navigation && driver?.online && <p className="text-sm font-medium">{navigation.phase === 'pickup' ? '接驾剩余' : '距目的地'} {formatDistance(remainingDistance ?? 0)} · {formatDuration(remainingDuration ?? 0)}</p>}

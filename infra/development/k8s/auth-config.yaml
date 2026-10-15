@@ -1,0 +1,9 @@
+# Development cluster only. Production must provision a random INTERNAL_RPC_KEY.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: internal-service-auth
+  namespace: ride-sharing
+type: Opaque
+stringData:
+  INTERNAL_RPC_KEY: local-development-rpc-key-replace-before-production-2026

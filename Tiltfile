@@ -4,6 +4,8 @@ default_registry('192.168.64.4:5000')
 allow_k8s_contexts('default')
 
 k8s_yaml('./infra/development/k8s/postgres.yaml')
+k8s_yaml('./infra/development/k8s/auth-config.yaml')
+k8s_yaml('./infra/development/k8s/internal-service-access.yaml')
 k8s_resource('postgres')
 
 ### API Gateway ###
@@ -35,7 +37,7 @@ docker_build_with_restart(
 
 k8s_yaml('./infra/development/k8s/api-gateway-deployment.yaml')
 k8s_resource('api-gateway', port_forwards=8081,
-             resource_deps=['api-gateway-compile'])
+             resource_deps=['api-gateway-compile', 'postgres'])
 
 ### End of API Gateway ###
 

@@ -15,6 +15,20 @@ spec:
       containers:
         - name: api-gateway
           image: europe-west1-docker.pkg.dev/{{PROJECT_ID}}/ride-sharing/api-gateway
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: DATABASE_URL
+            - name: SESSION_COOKIE_SECURE
+              value: "true"
+            # Set ALLOWED_ORIGINS to the actual HTTPS frontend origin before deployment.
+            - name: INTERNAL_RPC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: internal-service-auth
+                  key: INTERNAL_RPC_KEY
           ports:
             - containerPort: 8081
 ---

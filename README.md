@@ -6,7 +6,7 @@
 
 | 服务 | 端口 | 技术栈 | 职责 |
 |------|------|--------|------|
-| **api-gateway** | HTTP `:8081` | Go + gorilla/websocket | 统一入口，路由 `/services`、`/ws/drivers`、`/trip`，通过 gRPC 调用下游服务 |
+| **api-gateway** | HTTP `:8081` | Go + gorilla/websocket + pgx | 账号、会话、角色与资源权限；通过 gRPC 调用下游服务 |
 | **driver-service** | HTTP `:8082` / gRPC `:9092` | Go + gRPC | 持久化司机位置与在线状态，流式推送附近车辆 |
 | **trip-service** | gRPC `:9093` | Go + gRPC + pgx | 持久化订单、状态机、实时订单通知 |
 | **web** | `:3000` | Next.js 15 + React 19 + Leaflet | 地图前端（天地图底图），实时显示司机位置 |
@@ -137,7 +137,7 @@ tilt up
 cd web && npm run dev
 ```
 
-浏览器打开 **http://localhost:3000**，即可看到北京地图上移动的司机标记。
+浏览器打开 **http://localhost:3000**，注册并登录乘客账号后进入地图；司机账号自动进入工作台。
 
 ### 常用命令
 
@@ -149,7 +149,7 @@ kubectl get pods -n ride-sharing
 kubectl get svc -n ride-sharing
 
 # 直接通过节点 IP 访问网关（无需端口转发）
-curl http://192.168.64.4:8081/services
+curl http://192.168.64.4:8081/health
 
 # 扩容司机服务，观察副本分散到不同节点
 kubectl scale deployment driver-service --replicas=3 -n ride-sharing
@@ -209,7 +209,7 @@ PVC 可保留 Pod 重建后的数据，但 `local-path` 绑定单个节点，并
 
 1. `cd web && npm run dev`，打开 `http://localhost:3000`。
 2. 在地图点击目的地，然后点击“确认叫车”。选点本身不会写入订单。
-3. 另开浏览器页面 `http://localhost:3000/driver`，选择 `driver-0` 等演示身份。
+3. 使用另一个浏览器或独立的无痕窗口打开 `http://localhost:3000/driver`，注册司机账号并开启“演示行驶”或设备定位。同一浏览器的普通标签页共享登录会话。
 4. 点击“接受订单”；乘客端自动显示接驾状态。
 5. 司机依次点击“已到达上车点” → “乘客已上车，开始行程” → “到达目的地，结束行程”。
 6. 刷新任一页面，当前订单从数据库恢复。乘客可在开始行程前取消订单。
@@ -217,20 +217,19 @@ PVC 可保留 Pod 重建后的数据，但 `local-path` 绑定单个节点，并
 状态机：`PENDING → ACCEPTED → ARRIVED → IN_TRIP → COMPLETED`；前三种状态可转为 `CANCELLED`。
 行锁和数据库唯一索引保证一单只能有一个司机、司机和乘客各自只有一张进行中的订单；重复状态操作不会重复推进。
 
-演示身份不是登录认证：乘客 ID 保存在浏览器 localStorage，司机身份由页面选择。接口检查身份与订单关联，但尚不能防止伪造 ID；仅用于当前开发环境。
+乘客和司机身份来自服务端登录会话，前端不能通过请求参数切换身份。旧版匿名身份的订单和位置会保留，但不会自动绑定到新注册账号。
 司机端支持设备定位或明确标注的演示行驶；位置与在线状态保存在 PostgreSQL，停止定位会下线。
 
 ### HTTP 接口
 
 | 接口 | 参数与行为 |
 |---|---|
-| `POST /trip` | `rider_id`、`pickup`、`destination`；确认下单并返回完整订单 |
+| `POST /trip` | 仅乘客；`pickup`、`destination`；身份取自会话，创建成功返回 201 |
 | `GET /trip/{id}` | 返回订单、路线、司机、时间戳和版本 |
-| `GET /trips?rider_id=…` | 乘客最近订单，进行中订单优先，最多 100 条 |
-| `GET /trips?driver_id=…` | 待接订单与该司机订单，最多 100 条 |
-| `POST /trip/accept` | `trip_id`、`driver_id`；司机原子接单 |
-| `PATCH /trip/{id}/status` | 数字 `status` 与 `driver_id` 或 `rider_id` |
-| `GET /events/trips` | SSE；指定一个 `trip_id`、`rider_id` 或 `driver_id` 过滤条件 |
+| `GET /trips` | 按会话身份查询：乘客只看自己的订单，司机看自己的订单及待接订单；待接订单不暴露乘客 ID |
+| `POST /trip/accept` | 仅司机；`trip_id`；司机身份取自会话，原子接单 |
+| `PATCH /trip/{id}/status` | 数字 `status`；服务端检查当前账号与订单的关联及合法状态跳转 |
+| `GET /events/trips` | SSE；按登录身份过滤，可选 `trip_id` 必须属于当前账号 |
 
 状态数字：1 等待接单、2 已接单、3 已到达、4 行程中、5 已完成、6 已取消。
 冲突返回 HTTP 409，身份不匹配返回 403，订单不存在返回 404。
@@ -255,6 +254,29 @@ TEST_DATABASE_URL='postgres://ride_sharing:ride-sharing-local-dev@127.0.0.1:1543
 ```
 
 测试覆盖状态跳转、操作身份、并发抢单、司机重复接单、取消与接单竞争、跨服务实例通知，以及重新连接数据库后的订单恢复。
+
+## 登录与权限
+
+`/login` 支持注册、登录和退出。账号为 3–32 位字母、数字或下划线，忽略大小写；昵称 1–40 字，密码至少 10 字节、最多 72 字节。注册时选择乘客或司机，身份保存到数据库，之后无法通过登录参数或页面切换。
+
+| 接口 | 行为 |
+|---|---|
+| `POST /auth/register` | JSON：`username`、`password`、`display_name`、`role`（`rider` / `driver`）；创建账号并登录 |
+| `POST /auth/login` | JSON：`username`、`password`；创建会话 |
+| `GET /auth/me` | 返回当前账号、角色、会话有效期与 `csrf_token` |
+| `POST /auth/logout` | 撤销当前会话；司机同时下线 |
+
+账号与会话持久化到 PostgreSQL，由网关启动时自动建表。密码使用 bcrypt；随机会话令牌仅以 SHA-256 摘要保存在数据库，原值通过 HttpOnly、SameSite=Lax Cookie 发送，七天后过期。前端刷新后从 `/auth/me` 恢复登录，不把凭据保存在 localStorage。登录和注册按连接来源 IP、账号进行数据库共享限流。
+
+除 `/health`、登录和注册外，所有 HTTP、SSE 和 WebSocket 入口都需要登录。写请求还需携带 `/auth/me` 返回的 `X-CSRF-Token`；登录和注册要求 `application/json`。无会话返回 401，无权限返回 403。旧接口中的 `rider_id` / `driver_id` 若保留，必须与会话一致。用户只能读取自己的订单和导航，司机只能上报自己的位置；乘客可查询当前订单分配的司机，地图仍可展示附近在线车辆。退出或会话到期后，实时连接会被关闭，撤销检查最长约两秒。
+
+开发环境的 `ALLOWED_ORIGINS` 默认只允许 `http://localhost:3000` 与 `http://127.0.0.1:3000`，自定义前端地址需配置该变量（多个地址用逗号分隔）。HTTP 开发环境不设置 Secure Cookie。生产清单已设置 `SESSION_COOKIE_SECURE=true`，需通过 HTTPS 提供前端和网关，并将 `ALLOWED_ORIGINS` 配成实际前端源；跨站域名部署还需按实际 Cookie 策略调整，推荐使用同一站点。
+
+内部 gRPC 接口要求 `internal-service-auth` Secret 中的 `INTERNAL_RPC_KEY`（至少 32 字节），网关和两个服务必须使用同一值；缺失时启动失败。Tilt 自动应用的固定值只用于本地开发，生产需独立生成随机 Secret，并配置 `postgres-credentials`。开发与生产均提供 NetworkPolicy，只允许网关访问两个内部服务的 gRPC 端口，集群 CNI 需支持 NetworkPolicy。
+
+当前提供乘客和司机两种角色，司机可以自主注册。商业运营所需的司机资质审核、密码找回、账号管理和管理员后台尚未实现。
+
+认证与内部 gRPC 测试也包含在 `go test ./...` 中；带数据库的认证测试使用独立 `auth_test_*` schema，可用上面的 `TEST_DATABASE_URL` 执行 `go test -race ./services/api-gateway ./shared/rpcsecurity -v`。
 
 
 ## 司机定位与接驾导航

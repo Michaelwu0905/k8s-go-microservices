@@ -5,6 +5,7 @@ import (
 	"os"
 
 	pb "github.com/sikozonpc/ride-sharing/shared/proto/trip"
+	"github.com/sikozonpc/ride-sharing/shared/rpcsecurity"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -20,7 +21,12 @@ func NewTripServiceClient() (*TripServiceClient, error) {
 		tripServiceURL = "trip-service:9093"
 	}
 
-	conn, err := grpc.NewClient(tripServiceURL, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	options, err := rpcsecurity.ClientOptions()
+	if err != nil {
+		return nil, err
+	}
+	options = append(options, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	conn, err := grpc.NewClient(tripServiceURL, options...)
 	if err != nil {
 		return nil, err
 	}
