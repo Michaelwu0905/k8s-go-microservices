@@ -14,23 +14,30 @@ import { useTripFeed } from '@/hooks/useTripFeed';
 import { disableMapPropagation } from '@/lib/mapInteractions';
 import { tripRequest } from '@/lib/trips';
 import { MapClickHandler } from './MapClickHandler';
-import { isActiveTrip, Trip, TripStatus } from "@/types";
+import { isActiveTrip, Location, Trip, TripStatus } from "@/types";
 import { RoutingControl } from "@/components/RoutingControl";
 import { RideConfirmationCard } from "@/components/RideConfirmationCard";
+
+const initialCenter: [number, number] = [39.9087, 116.3975];
 
 export function NearbyDriversMap() {
     const { user } = useAuth();
     const riderId = user?.id ?? '';
     const { trips, connected, ready, updateTrip } = useTripFeed({ riderId });
     const [trackedId, setTrackedId] = useState('');
-    const [destination, setDestination] = useState<[number, number] | null>(null);
+    const [pickup, setPickup] = useState<Location | null>(null);
+    const [destination, setDestination] = useState<Location | null>(null);
+    const [selectionTarget, setSelectionTarget] = useState<'pickup' | 'destination'>('pickup');
     const [busy, setBusy] = useState(false);
     const [requestError, setRequestError] = useState<string | null>(null);
     const activeTrip = trips.find(isActiveTrip);
     const trip = trips.find(item => item.trip_id === trackedId) ?? activeTrip ?? null;
     const route = trip?.route.geometry[0]?.coordinates.map(point => [point.latitude, point.longitude] as [number, number]) ?? [];
-    const location = { latitude: 39.9087, longitude: 116.3975 };
-    const { drivers, error } = useNearbyDrivers(location, trip && isActiveTrip(trip) ? trip.driver_id : undefined);
+    const displayedPickup = trip?.pickup ?? pickup;
+    const displayedDestination = trip?.destination ?? destination;
+    const sameLocation = !!pickup && !!destination && pickup.latitude === destination.latitude && pickup.longitude === destination.longitude;
+    const canRequest = ready && connected && !!pickup && !!destination && !sameLocation && !trip && !busy;
+    const { drivers, error } = useNearbyDrivers(displayedPickup, trip && isActiveTrip(trip) ? trip.driver_id : undefined);
     const assignedDriver = drivers.find(driver => driver.driver_id === trip?.driver_id);
     const navigation = useNavigation(trip, assignedDriver);
 
@@ -39,19 +46,25 @@ export function NearbyDriversMap() {
     }, [activeTrip]);
 
     const handleMapClick = (e: L.LeafletMouseEvent) => {
-        if (trip || busy) return;
-        setDestination([e.latlng.lat, e.latlng.lng]);
+        if (!ready || trip || busy) return;
+        const point = { latitude: e.latlng.lat, longitude: e.latlng.lng };
+        if (selectionTarget === 'pickup') {
+            setPickup(point);
+            setSelectionTarget('destination');
+        } else {
+            setDestination(point);
+        }
         setRequestError(null);
     };
 
     const requestRide = async () => {
-        if (!destination || !riderId || busy) return;
+        if (!canRequest || !pickup || !destination || !riderId) return;
         setBusy(true);
         setRequestError(null);
         try {
             const created = await tripRequest<Trip>('/trip', 'POST', {
-                pickup: location,
-                destination: { latitude: destination[0], longitude: destination[1] },
+                pickup,
+                destination,
             });
             setTrackedId(created.trip_id);
             updateTrip(created);
@@ -75,9 +88,9 @@ export function NearbyDriversMap() {
 
     return (
         <MapContainer
-            center={[location.latitude, location.longitude]}
+            center={initialCenter}
             zoom={13}
-            style={{ height: '100vh', width: '100%' }}
+            style={{ height: '100dvh', width: '100%' }}
         >
             <TileLayer
                 url={`https://t0.tianditu.gov.cn/vec_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=vec&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${process.env.NEXT_PUBLIC_TIANDITU_KEY}`}
@@ -87,18 +100,18 @@ export function NearbyDriversMap() {
                 url={`https://t0.tianditu.gov.cn/cva_w/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=cva&STYLE=default&TILEMATRIXSET=w&FORMAT=tiles&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}&tk=${process.env.NEXT_PUBLIC_TIANDITU_KEY}`}
                 attribution="&copy; 天地图"
             />
-            <CircleMarker center={[location.latitude, location.longitude]} radius={8} bubblingMouseEvents={false} pathOptions={{ color: '#16a34a', fillOpacity: 1 }}><Popup>上车点</Popup></CircleMarker>
+            {displayedPickup && <CircleMarker center={[displayedPickup.latitude, displayedPickup.longitude]} radius={8} bubblingMouseEvents={false} pathOptions={{ color: '#16a34a', fillOpacity: 1 }}><Popup>上车点</Popup></CircleMarker>}
 
             {drivers.filter(driver => driver.online || driver.driver_id === trip?.driver_id).map(driver => (
                 <DriverMarker key={driver.driver_id} driver={driver} />
             ))}
-            {(trip?.destination || destination) && (
-                <CircleMarker center={trip ? [trip.destination.latitude, trip.destination.longitude] : destination!} radius={8} bubblingMouseEvents={false} pathOptions={{ color: '#2563eb', fillOpacity: 1 }}>
+            {displayedDestination && (
+                <CircleMarker center={[displayedDestination.latitude, displayedDestination.longitude]} radius={8} bubblingMouseEvents={false} pathOptions={{ color: '#2563eb', fillOpacity: 1 }}>
                     <Popup>目的地</Popup>
                 </CircleMarker>
             )}
             <div ref={disableMapPropagation} className="absolute right-4 top-4 z-[1000] max-w-[calc(100%-5rem)] rounded-xl border bg-background p-3 shadow">
-                <div className="flex items-center gap-4 text-sm">
+                <div className="flex flex-wrap items-center gap-3 text-sm">
                     <span>{connected ? '订单实时同步中' : ready ? '连接中断，正在重连…' : '正在恢复订单…'}</span>
                     <AccountMenu />
                 </div>
@@ -111,20 +124,24 @@ export function NearbyDriversMap() {
                 remainingDistance={navigation.distance}
                 remainingDuration={navigation.duration}
                 navigationError={navigation.error}
-                destination={destination ? { latitude: destination[0], longitude: destination[1] } : null}
+                pickup={displayedPickup}
+                destination={displayedDestination}
+                selectionTarget={selectionTarget}
+                canEdit={ready && !busy}
+                onSelectTarget={target => { setSelectionTarget(target); setRequestError(null); }}
                 busy={busy}
-                error={requestError}
-                canRequest={ready && connected}
+                error={requestError ?? (!trip && sameLocation ? '起点和终点不能相同，请重新选择。' : null)}
+                canRequest={canRequest}
                 onRequest={requestRide}
                 onCancel={cancelRide}
-                onReset={() => { setTrackedId(''); setDestination(null); setRequestError(null); }}
+                onReset={() => { setTrackedId(''); setPickup(null); setDestination(null); setSelectionTarget('pickup'); setRequestError(null); }}
             />
             <RoutingControl
                 route={route}
                 navigation={navigation.path}
                 phase={navigation.navigation?.phase}
             />
-            {trip?.driver_id && <MapViewport path={navigation.path} focus={assignedDriver?.location} fitKey={`${trip.trip_id}:${navigation.navigation?.phase}`} />}
+            {trip && <MapViewport path={navigation.path.length > 1 ? navigation.path : trip.route.geometry[0]?.coordinates ?? []} focus={assignedDriver?.location ?? trip.pickup} fitKey={`${trip.trip_id}:${navigation.navigation?.phase ?? 'trip'}`} />}
             <MapClickHandler onClick={handleMapClick} />
         </MapContainer>
     )

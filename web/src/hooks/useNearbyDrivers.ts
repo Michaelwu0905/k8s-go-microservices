@@ -5,11 +5,15 @@ import { checkSession } from '@/lib/session';
 import type { Driver, Location } from '@/types';
 export type { Driver } from '@/types';
 
-export function useNearbyDrivers(location: Location, assignedDriverId = '') {
+export function useNearbyDrivers(location: Location | null, assignedDriverId = '') {
   const [drivers, setDrivers] = useState<Driver[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const { latitude, longitude } = location;
+  const latitude = location?.latitude;
+  const longitude = location?.longitude;
   useEffect(() => {
+    setDrivers([]);
+    setError(null);
+    if (latitude === undefined || longitude === undefined) return;
     let active = true;
     let socket: WebSocket;
     let retry: ReturnType<typeof setTimeout>;

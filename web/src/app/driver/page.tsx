@@ -111,7 +111,7 @@ function DriverDashboard() {
         </Card>}
         <section className="space-y-4">
           <h2 className="text-xl font-semibold">待接订单 <span className="text-muted-foreground">{available.length}</span></h2>
-          {ready && available.length === 0 && <p className="rounded-xl border bg-background p-6 text-sm text-muted-foreground">暂无待接订单。在乘客端选择目的地并确认叫车，新订单会自动出现在这里。</p>}
+          {ready && available.length === 0 && <p className="rounded-xl border bg-background p-6 text-sm text-muted-foreground">暂无待接订单。在乘客端选择起点和终点并确认叫车，新订单会自动出现在这里。</p>}
           {!canAccept && <p className="text-sm text-muted-foreground">请先开启设备定位或演示行驶，再接受新订单。</p>}
           <div className="grid gap-4 md:grid-cols-2">
             {available.map(trip => <Card key={trip.trip_id}>
